@@ -16,6 +16,8 @@ const load = {
   achievements: () => import('@/pages/AchievementsPage'),
   pass: () => import('@/pages/PassPage'),
   profile: () => import('@/pages/ProfilePage'),
+  legal: () => import('@/pages/LegalPage'),
+  admin: () => import('@/pages/AdminPage'),
   notFound: () => import('@/pages/NotFoundPage'),
 }
 
@@ -30,6 +32,8 @@ const RankingsPage = lazy(load.rankings)
 const AchievementsPage = lazy(load.achievements)
 const PassPage = lazy(load.pass)
 const ProfilePage = lazy(load.profile)
+const LegalPage = lazy(load.legal)
+const AdminPage = lazy(load.admin)
 const NotFoundPage = lazy(load.notFound)
 
 /** Pré-carrega em segundo plano as rotas do funil principal (jogo -> player). */
@@ -60,6 +64,9 @@ export const router = createBrowserRouter([
       { path: 'achievements', element: <AchievementsPage /> },
       { path: 'pass', element: <PassPage /> },
       { path: 'profile', element: <ProfilePage /> },
+      { path: 'privacidade', element: <LegalPage /> },
+      { path: 'termos', element: <LegalPage /> },
+      { path: 'admin', element: <AdminPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

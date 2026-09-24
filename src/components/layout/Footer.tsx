@@ -32,7 +32,16 @@ export function Footer() {
         </ul>
       </div>
       <div className="mt-8 flex flex-col-reverse gap-3 border-t border-line pt-4 text-xs text-subtle sm:flex-row sm:items-center sm:justify-between">
-        <p>{t('footer.rights', { year: new Date().getFullYear() })}</p>
+        <p>
+          {t('footer.rights', { year: new Date().getFullYear() })} ·{' '}
+          <Link to="/termos" className="hover:text-fg">
+            Termos
+          </Link>{' '}
+          ·{' '}
+          <Link to="/privacidade" className="hover:text-fg">
+            Privacidade
+          </Link>
+        </p>
         <div className="md:hidden">
           <LanguageSelect />
         </div>

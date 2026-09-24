@@ -1,9 +1,10 @@
-// Perfil do jogador. V1: perfil de convidado local calculado a partir da
-// atividade real neste dispositivo. Futuro: GET /api/me com a mesma forma (PlayerProfile).
+// Perfil do jogador, calculado a partir da atividade (cache local sincronizado
+// com o Supabase). A identidade vem do banco quando há sessão.
 import type { PlayerBadge, PlayerProfile } from '@/types/player'
 import { createPersistentStore } from './persistentStore'
 import type { FavoriteEntry, HistoryEntry } from './library'
 import { achievementService } from './achievementService'
+import { remote } from './backend/remote'
 
 export interface LocalIdentity {
   athgId: string
@@ -55,11 +56,14 @@ function badgeFor(level: number): PlayerBadge {
 }
 
 export const profileService = {
-  updateUsername(username: string) {
+  /** Valida, grava na nuvem (nome é único) e atualiza o cache local. */
+  async updateUsername(username: string): Promise<'ok' | 'invalid' | 'taken' | 'error'> {
     const clean = username.replace(/[^\p{L}\p{N}_.-]/gu, '').slice(0, 20)
-    if (clean.length < 3) return false
+    if (clean.length < 3) return 'invalid'
+    const result = await remote.updateUsername(clean)
+    if (result === 'taken') return 'taken'
     identityStore.set({ ...ensureIdentity(), username: clean })
-    return true
+    return result === 'error' ? 'error' : 'ok'
   },
 
   compute(

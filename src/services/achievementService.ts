@@ -1,14 +1,12 @@
 import { achievements } from '@/data/achievements'
-import { demoUnlockedAchievements } from '@/data/demo/achievements'
 import type { Achievement, AchievementWithState } from '@/types/achievement'
 import { createPersistentStore } from './persistentStore'
 import { favoritesStore, historyStore, type FavoriteEntry, type HistoryEntry } from './library'
 import { analytics } from './analytics'
+import { remote } from './backend/remote'
 
 /** id da conquista -> timestamp do desbloqueio (real, neste dispositivo). */
 export const unlockedStore = createPersistentStore<Record<string, number>>('achievements', {})
-
-const demoSet = new Set(demoUnlockedAchievements)
 
 type PlatformRule = (ctx: { history: HistoryEntry[]; favorites: FavoriteEntry[] }) => boolean
 const platformRules: Record<string, PlatformRule> = {
@@ -21,13 +19,11 @@ const platformRules: Record<string, PlatformRule> = {
 export const achievementService = {
   catalog: (): Achievement[] => achievements,
 
-  /** Estado combinado: real (local) > demo > bloqueada. */
+  /** Estado de cada conquista para o jogador atual. */
   withState(unlocked: Record<string, number>): AchievementWithState[] {
     return achievements.map((a) => {
       const at = unlocked[a.id]
-      if (at) return { ...a, unlocked: true, unlockedAt: at, demo: false }
-      const demo = a.scope !== 'athg' && demoSet.has(a.id)
-      return { ...a, unlocked: demo, demo }
+      return at ? { ...a, unlocked: true, unlockedAt: at, demo: false } : { ...a, unlocked: false, demo: false }
     })
   },
 
@@ -39,6 +35,7 @@ export const achievementService = {
     if (fresh.length) {
       const now = Date.now()
       unlockedStore.set((prev) => ({ ...prev, ...Object.fromEntries(fresh.map((a) => [a.id, now])) }))
+      fresh.forEach((a) => void remote.unlockAchievement(a.id, a.scope, a.xp))
     }
     return fresh
   },
@@ -48,6 +45,7 @@ export const achievementService = {
     const def = achievements.find((a) => a.id === id && a.scope === game)
     if (unlockedStore.get()[id]) return null
     unlockedStore.set((prev) => ({ ...prev, [id]: Date.now() }))
+    void remote.unlockAchievement(id, game, def?.xp ?? 0)
     analytics.track('game_event', { game, event: 'achievement_unlocked', achievement: id })
     return def ?? null
   },

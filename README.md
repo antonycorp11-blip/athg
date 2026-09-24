@@ -82,8 +82,17 @@ Componentes nunca leem `src/data` direto: sempre via `services/`. Para ligar uma
 | Rankings reais | `rankingService.getLeaderboard()` |
 | Reports | `reportService.submit()` → `POST /api/reports` |
 
-## O que é real e o que é demo na V1
+## Backend (Supabase — projeto ATHG, São Paulo)
 
-- **Real (neste dispositivo):** favoritos, histórico, "Continue jogando", tempo jogado (só conta com a aba visível), conquistas da plataforma, conquistas/score/save enviados pelo jogo, XP e nível do perfil.
-- **Demo (marcado na interface):** jogadores dos rankings e o progresso de parte das conquistas de jogo.
+- **Contas:** convidado anônimo criado ao jogar pela primeira vez; email + senha opcionais. Ao entrar/criar conta, o progresso do convidado é transferido (`merge_guest`).
+- **Dados:** perfis, sessões de jogo (tempo ativo validado no servidor), favoritos, conquistas, pontuações, saves, eventos e reports — todos com RLS.
+- **Painel admin:** `/admin`, só para contas em `public.app_admins`. Para adicionar um admin (SQL Editor do Supabase):
+  `insert into app_admins (user_id) select id from auth.users where email = 'email@da.conta';`
+- **Configuração no painel do Supabase:** Authentication → Sign In / Providers → *Allow anonymous sign-ins* ligado; Authentication → URL Configuration → Site URL e Redirect URLs (`https://athg.antonycorp11.workers.dev/**`, `http://localhost:5173/**`).
+- Chave publicável e URL ficam em `src/config/site.ts` (públicas por natureza; a segurança é o RLS). **Nunca** use a chave secret no site.
+
+## O que é real e o que é demo
+
+- **Real:** contas, progresso, horas jogadas, favoritos, conquistas da plataforma, rankings (Geral = minutos nos últimos 7 dias; jogos = melhor pontuação), saves e reports.
+- **Aguardando integração dos jogos (SDK):** conquistas e pontuações de cada jogo.
 - **Visual apenas:** ATHG Pass (sem checkout).

@@ -37,3 +37,20 @@ export function createPersistentStore<T>(key: string, initial: T): Store<T> {
     },
   }
 }
+
+/** Mesmo contrato do Store, só em memória (estado de sessão, não persiste). */
+export function createMemoryStore<T>(initial: T): Store<T> {
+  let state = initial
+  const listeners = new Set<() => void>()
+  return {
+    get: () => state,
+    set: (updater) => {
+      state = typeof updater === 'function' ? (updater as (prev: T) => T)(state) : updater
+      listeners.forEach((l) => l())
+    },
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
+}

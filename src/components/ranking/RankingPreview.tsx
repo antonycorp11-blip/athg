@@ -3,7 +3,6 @@ import { rankingService } from '@/services/rankingService'
 import { useAsync } from '@/hooks/useAsync'
 import { useTranslation } from '@/i18n/useTranslation'
 import { SectionHeader } from '@/components/ui/SectionHeader'
-import { DemoBadge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatNumber } from '@/utils/format'
@@ -21,13 +20,19 @@ export function RankingPreview() {
       <SectionHeader
         id="home-ranking"
         title={t('home.weeklyRanking')}
-        subtitle={t('home.weeklyRankingSub')}
+        subtitle={t('rankings.minutes')}
         icon={Trophy}
-        extra={<DemoBadge className="ml-1" />}
         action={{ label: t('common.seeAll'), to: '/rankings' }}
       />
       <ol className="surface divide-y divide-line overflow-hidden rounded-card">
-        {state.status !== 'success'
+        {state.status === 'success' && state.data.entries.length === 0 ? (
+          <li className="px-4 py-6 text-center">
+            <p className="text-sm font-semibold">{t('rankings.empty')}</p>
+            <p className="text-xs text-muted">{t('rankings.emptyHint')}</p>
+          </li>
+        ) : state.status === 'error' ? (
+          <li className="px-4 py-6 text-center text-sm text-muted">{t('rankings.loadError')}</li>
+        ) : state.status !== 'success'
           ? Array.from({ length: 5 }, (_, i) => (
               <li key={i} className="flex items-center gap-3 px-4 py-3">
                 <Skeleton className="size-8 rounded-full" />
@@ -42,7 +47,9 @@ export function RankingPreview() {
                   <p className="truncate text-sm font-semibold">{e.username}</p>
                   <p className="text-[11px] text-muted">{t('common.levelShort', { level: e.level })}</p>
                 </div>
-                <span className="font-display text-sm font-bold tabular-nums">{formatNumber(e.score, locale)}</span>
+                <span className="font-display text-sm font-bold tabular-nums">
+                  {formatNumber(e.score, locale)} <span className="text-[11px] font-medium text-muted">min</span>
+                </span>
               </li>
             ))}
       </ol>

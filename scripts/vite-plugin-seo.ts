@@ -89,7 +89,7 @@ export function seoPlugin(siteUrl: string): Plugin {
       )
       await writeFile(
         join(outDir, 'robots.txt'),
-        `User-agent: *\nAllow: /\nDisallow: /play/\nDisallow: /builds/\nDisallow: /profile\nDisallow: /favorites\nDisallow: /search\n\nSitemap: ${siteUrl}/sitemap.xml\n`,
+        `User-agent: *\nAllow: /\nDisallow: /play/\nDisallow: /builds/\nDisallow: /profile\nDisallow: /favorites\nDisallow: /search\nDisallow: /admin\n\nSitemap: ${siteUrl}/sitemap.xml\n`,
       )
       console.log(`[athg-seo] ${pages.length} páginas + sitemap.xml + robots.txt (${siteUrl})`)
     },

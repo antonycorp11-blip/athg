@@ -12,7 +12,6 @@ import { gamesService, isPlayable } from '@/services/gamesService'
 import { formatDate, formatPlaytime, formatRelative } from '@/utils/format'
 import { Avatar } from '@/components/ui/Avatar'
 import { StatCard } from '@/components/ui/StatCard'
-import { Notice } from '@/components/ui/Notice'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { IconButton } from '@/components/ui/IconButton'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -21,11 +20,15 @@ import { Chips } from '@/components/ui/Tabs'
 import { GameArt } from '@/components/games/GameArt'
 import { PlayerCard } from '@/components/profile/PlayerCard'
 import { AchievementCard } from '@/components/achievements/AchievementCard'
+import { AccountCard } from '@/components/account/AccountCard'
+import { useToast } from '@/components/ui/Toast'
 
 const RARITIES: CardRarity[] = ['common', 'rare', 'epic', 'legendary', 'founder', 'pass']
 
 export default function ProfilePage() {
   const { t, locale } = useTranslation()
+  const { toast } = useToast()
+  const [nameError, setNameError] = useState<string | null>(null)
   const profile = useProfile()
   const { games: recent } = useHistory()
   const achievements = useAchievements()
@@ -40,13 +43,18 @@ export default function ProfilePage() {
   const levelPct = Math.round(((profile.xp - profile.levelFloorXp) / levelSpan) * 100)
   const unlockedReal = achievements.filter((a) => a.unlocked && !a.demo).sort((a, b) => (b.unlockedAt ?? 0) - (a.unlockedAt ?? 0))
 
-  const saveName = () => {
-    if (profileService.updateUsername(name)) setEditing(false)
+  const saveName = async () => {
+    setNameError(null)
+    const result = await profileService.updateUsername(name)
+    if (result === 'invalid') return setNameError(t('account.nameInvalid'))
+    if (result === 'taken') return setNameError(t('account.nameTaken'))
+    setEditing(false)
+    toast(t('account.nameSaved'))
   }
 
   return (
     <div className="space-y-8 pt-6 md:pt-8">
-      <Notice tone="brand">{t('profile.guestNotice')}</Notice>
+      <AccountCard />
 
       {/* Cabeçalho */}
       <section className="noise relative overflow-hidden rounded-xl border border-line bg-[radial-gradient(80%_120%_at_0%_0%,rgb(22_119_255/0.18),transparent_60%),linear-gradient(180deg,#0d1627,#0a111e)] p-5 sm:p-8">
@@ -57,7 +65,7 @@ export default function ProfilePage() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
-                  saveName()
+                  void saveName()
                 }}
                 className="flex items-center gap-1"
               >
@@ -72,9 +80,11 @@ export default function ProfilePage() {
                   className="h-10 w-full max-w-xs rounded-md border border-brand/50 bg-white/[0.04] px-3 font-display text-xl font-bold outline-none"
                 />
                 <IconButton icon={Check} label={t('common.save')} type="submit" />
-                <IconButton icon={X} label={t('common.cancel')} onClick={() => { setEditing(false); setName(profile.username) }} />
+                <IconButton icon={X} label={t('common.cancel')} onClick={() => { setEditing(false); setName(profile.username); setNameError(null) }} />
               </form>
-            ) : (
+            ) : null}
+            {editing && nameError && <p role="alert" className="mt-1 text-xs text-[#ff9aac]">{nameError}</p>}
+            {!editing && (
               <div className="flex items-center gap-1">
                 <h1 className="display-title truncate text-2xl sm:text-3xl">{profile.username}</h1>
                 <IconButton icon={Pencil} label={t('profile.editName')} size="sm" onClick={() => { setName(profile.username); setEditing(true) }} />

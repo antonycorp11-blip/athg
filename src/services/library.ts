@@ -1,8 +1,9 @@
-// Biblioteca local do jogador (favoritos + histórico + tempo jogado).
-// Sem login na V1: tudo fica neste dispositivo. No futuro, este serviço
-// passa a sincronizar com a conta ATHG mantendo a mesma interface.
+// Biblioteca do jogador (favoritos + histórico + tempo jogado).
+// Cache local lido pela UI; favoritos vão para a nuvem na hora e o resto é
+// alinhado pelo services/backend/sync ao entrar.
 import { createPersistentStore } from './persistentStore'
 import { analytics } from './analytics'
+import { remote } from './backend/remote'
 
 export interface FavoriteEntry {
   slug: string
@@ -33,6 +34,7 @@ export const library = {
       exists ? prev.filter((f) => f.slug !== slug) : [{ slug, addedAt: Date.now() }, ...prev],
     )
     analytics.track(exists ? 'favorite_removed' : 'favorite_added', { game: slug })
+    void remote.setFavorite(slug, !exists)
     return !exists
   },
 

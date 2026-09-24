@@ -8,10 +8,18 @@ import './styles/index.css'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ToastProvider } from '@/components/ui/Toast'
 import { ensureIdentity } from '@/services/profileService'
+import { analytics } from '@/services/analytics'
+import { auth } from '@/services/backend/auth'
+import { remote } from '@/services/backend/remote'
+import { startSync } from '@/services/backend/sync'
 import { router, prefetchCoreRoutes } from './routes'
 
 // Perfil local de convidado (play first: nada de cadastro para jogar).
 ensureIdentity()
+// Backend: sincroniza quando houver sessão; eventos relevantes vão para o banco.
+startSync()
+auth.boot()
+analytics.addSink({ track: (event, props) => remote.trackEvent(event, props) })
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

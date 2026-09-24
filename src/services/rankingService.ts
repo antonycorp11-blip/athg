@@ -1,26 +1,39 @@
-// Rankings. V1: dados de demonstração + melhor pontuação local do jogador.
-// Futuro: GET /api/leaderboards/:id — basta trocar a implementação de getLeaderboard.
-import { demoLeaderboards } from '@/data/demo/leaderboards'
-import type { Leaderboard, LeaderboardEntry, LeaderboardId } from '@/types/ranking'
+// Rankings reais (Supabase). 'global' = minutos jogados nos últimos 7 dias;
+// slug de jogo = melhor pontuação enviada pelo jogo (SCORE_UPDATED / GAME_OVER).
+import type { Leaderboard, LeaderboardId } from '@/types/ranking'
 import { createPersistentStore } from './persistentStore'
+import { auth } from './backend/auth'
+import { remote } from './backend/remote'
 
-/** Melhor pontuação local por jogo (enviada pelo jogo via SCORE_UPDATED). */
+/** Melhor pontuação local por jogo (cache; a oficial fica no banco). */
 export const bestScoresStore = createPersistentStore<Record<string, number>>('best-scores', {})
 
 export const rankingService = {
-  async getLeaderboard(id: LeaderboardId, player?: { username: string; avatarSeed: string; level: number }): Promise<Leaderboard> {
-    const base = demoLeaderboards[id] ?? []
-    let entries: LeaderboardEntry[] = base
-    const best = bestScoresStore.get()[id]
-    if (player && id !== 'global' && best) {
-      const me: LeaderboardEntry = { rank: 0, playerId: 'me', ...player, score: best, isCurrentPlayer: true }
-      entries = [...base, me].sort((a, b) => b.score - a.score).map((e, i) => ({ ...e, rank: i + 1 }))
+  async getLeaderboard(id: LeaderboardId): Promise<Leaderboard> {
+    const db = await auth.publicClient()
+    if (!db) throw new Error('backend_unavailable')
+    const { data, error } = await db.rpc('leaderboard', { p_board: id, p_limit: 50 })
+    if (error) throw error
+    return {
+      id,
+      period: id === 'global' ? 'weekly' : 'all-time',
+      isDemo: false,
+      updatedAt: Date.now(),
+      entries: (data ?? []).map((e) => ({
+        rank: e.rank,
+        playerId: `${id}-${e.rank}`,
+        username: e.username,
+        avatarSeed: e.avatar_seed,
+        level: e.level,
+        score: e.score,
+        isCurrentPlayer: e.is_me,
+      })),
     }
-    return { id, period: 'weekly', entries, isDemo: true, updatedAt: Date.now() }
   },
 
   submitScore(game: string, score: number) {
     if (!Number.isFinite(score)) return
     bestScoresStore.set((prev) => (score > (prev[game] ?? -Infinity) ? { ...prev, [game]: score } : prev))
+    void remote.submitScore(game, score)
   },
 }

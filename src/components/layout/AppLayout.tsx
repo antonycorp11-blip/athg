@@ -11,6 +11,7 @@ import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 import { Footer } from './Footer'
 import { AchievementWatcher } from './AchievementWatcher'
+import { AuthModal } from '@/components/account/AuthModal'
 
 export function AppLayout() {
   const { t } = useTranslation()
@@ -45,6 +46,7 @@ export function AppLayout() {
       </main>
       <BottomNav />
       <AchievementWatcher />
+      <AuthModal />
       {/* Carga completa usa a chave "default" em toda rota: nesse caso, chaveia pelo caminho. */}
       <ScrollRestoration getKey={(location) => (location.key === 'default' ? location.pathname : location.key)} />
     </div>

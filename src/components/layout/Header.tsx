@@ -1,5 +1,5 @@
 import { Link, NavLink } from 'react-router'
-import { Crown, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Crown, LogIn, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useProfile } from '@/hooks/useProfile'
 import { useNavActive } from '@/hooks/useNavActive'
@@ -14,12 +14,17 @@ import { Avatar } from '@/components/ui/Avatar'
 import { IconButton } from '@/components/ui/IconButton'
 import { ButtonLink } from '@/components/ui/Button'
 import { cn } from '@/utils/cn'
+import { Button } from '@/components/ui/Button'
+import { authStore } from '@/services/backend/auth'
+import { openAuthModal } from '@/components/account/authModalStore'
 
 export function Header() {
   const { t } = useTranslation()
   const profile = useProfile()
   const isActive = useNavActive()
   const { sidebarCollapsed } = useStore(uiStore)
+  const { userId, isAnonymous } = useStore(authStore)
+  const signedIn = Boolean(userId && !isAnonymous)
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 h-[var(--header-h)] border-b border-line bg-bg/85 backdrop-blur-xl">
@@ -61,6 +66,11 @@ export function Header() {
         <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
           <SearchBar className="hidden w-56 md:block lg:w-64 2xl:w-80" />
           <NotificationsMenu />
+          {!signedIn && (
+            <Button variant="ghost" size="sm" icon={LogIn} onClick={() => openAuthModal('signin')} className="hidden text-fg md:inline-flex">
+              {t('account.signIn')}
+            </Button>
+          )}
           <Link
             to="/profile"
             aria-label={t('nav.profile')}

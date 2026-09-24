@@ -4,7 +4,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { formatNumber } from '@/utils/format'
 import { cn } from '@/utils/cn'
 
-export function LeaderboardTable({ entries }: { entries: LeaderboardEntry[] }) {
+export function LeaderboardTable({ entries, scoreLabel }: { entries: LeaderboardEntry[]; scoreLabel?: string }) {
   const { t, locale } = useTranslation()
   return (
     <div className="surface overflow-hidden rounded-card">
@@ -14,7 +14,7 @@ export function LeaderboardTable({ entries }: { entries: LeaderboardEntry[] }) {
             <th scope="col" className="w-14 py-3 pl-4 font-medium">#</th>
             <th scope="col" className="py-3 font-medium">{t('rankings.player')}</th>
             <th scope="col" className="hidden py-3 font-medium sm:table-cell">{t('rankings.level')}</th>
-            <th scope="col" className="py-3 pr-4 text-right font-medium">{t('rankings.score')}</th>
+            <th scope="col" className="py-3 pr-4 text-right font-medium">{scoreLabel ?? t('rankings.score')}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
