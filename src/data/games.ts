@@ -29,9 +29,8 @@ export const games: Game[] = [
       'Você herdou uma fazenda de sangue — e, com ela, uma dívida com o castelo. Toda noite chega o Dízimo, e a cota só cresce. Construa casas e hortas, cuide dos humanos que vivem ali, pesquise com o Dr. Hemático e feche contratos para manter a produção de pé. Quando a lua cheia sobe, os lobisomens atacam: monte a defesa e proteja o que é seu. Falhe três vezes com o castelo e perde tudo.',
     thumbnail: '/games/hemofazenda/thumbnail.webp',
     banner: '/games/hemofazenda/banner.jpg',
-    // TODO: trocar pela URL da Cloudflare quando o projeto "hemofarm" estiver no ar.
-    gameUrl: '/builds/sandbox/?game=hemofazenda',
-    hosting: 'self-hosted',
+    gameUrl: 'https://hemofarm.antonycorp11.workers.dev/',
+    hosting: 'external',
     categories: ['gerenciamento', 'estrategia'],
     tags: ['Vampiros', 'Fazenda', 'Lobisomens', 'Singleplayer'],
     featured: true,

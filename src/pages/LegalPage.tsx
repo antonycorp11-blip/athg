@@ -2,6 +2,7 @@ import { useLocation } from 'react-router'
 import { ShieldCheck, ScrollText } from 'lucide-react'
 import { useSeo } from '@/hooks/useSeo'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { site } from '@/config/site'
 
 // Textos legais em pt-BR (versão inicial). Revisar com um profissional antes
 // de escalar e sempre que a coleta de dados mudar.
@@ -41,6 +42,7 @@ const privacy: [string, string[]][] = [
       'Você pode acessar, corrigir e excluir seus dados. O nome de jogador pode ser alterado no Perfil.',
       'Excluir conta: no Perfil, use "Excluir minha conta". Isso apaga sua conta e todo o seu progresso de forma definitiva.',
       'Convidados podem apagar os dados do navegador a qualquer momento limpando os dados do site.',
+      `Para qualquer pedido sobre seus dados (acesso, correção, exclusão ou dúvidas), escreva para ${site.contactEmail}.`,
     ],
   ],
   ['Menores de idade', ['Se você tem menos de 18 anos, peça a um responsável para ler esta política com você antes de criar uma conta.']],
@@ -68,6 +70,7 @@ const terms: [string, string[]][] = [
   ['ATHG Pass', ['O ATHG Pass ainda não está disponível. Quando for lançado, terá condições próprias de assinatura.']],
   ['Garantias', ['A plataforma é oferecida "como está". Fazemos o possível para mantê-la no ar e segura, mas não garantimos funcionamento ininterrupto nem ausência de erros.']],
   ['Mudanças', ['Estes termos podem ser atualizados. A data abaixo indica a versão atual.']],
+  ['Contato', [`Dúvidas sobre estes termos: ${site.contactEmail}.`]],
 ]
 
 export default function LegalPage() {

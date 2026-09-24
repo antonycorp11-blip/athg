@@ -8,6 +8,8 @@ export const site = {
   themeColor: '#060B14',
   /** @handle do X/Twitter quando existir, ex: '@athggames' */
   twitterHandle: '',
+  /** Contato público (privacidade/LGPD e suporte). */
+  contactEmail: 'antonycorp11@gmail.com',
 }
 
 export const normalizeSiteUrl = (url: string | undefined) => (url || DEFAULT_SITE_URL).replace(/\/+$/, '')
