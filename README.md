@@ -32,7 +32,7 @@ O build gera HTML estático com título/descrição/OG/JSON-LD próprios para ca
    - **Em outro domínio:** `gameUrl` absoluto + `hosting: 'external'` (o domínio precisa permitir iframe). Roda em sandbox.
    - Jogos de **terceiros** devem ficar em um domínio separado do portal, nunca em `/builds`.
 
-> ⚠️ Hemofazenda e Profund.io apontam hoje para `/builds/sandbox/` — uma build de integração que testa o player e a ponte portal ↔ jogo. **Troque o `gameUrl` pelas builds reais.**
+> Hemofazenda (`hemofarm.antonycorp11.workers.dev`) e Profund.io (`profund-io.antonycorp11.workers.dev`) rodam como projetos próprios na Cloudflare. `/builds/sandbox/` é só uma build de teste da ponte portal ↔ jogo.
 
 Destaque da Home: [`src/data/home.ts`](src/data/home.ts). Categorias: [`src/data/categories.ts`](src/data/categories.ts).
 

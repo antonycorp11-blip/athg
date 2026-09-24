@@ -61,9 +61,8 @@ export const games: Game[] = [
       'Há 14 anos, Santiago Ramires desceu na mina e nunca mais voltou. Agora é a vez do filho, Elias. Cave, encontre pistas, resgate quem ficou para trás e monte uma operação industrial lá embaixo. Quatro cidades subterrâneas guardam as passagens para as camadas mais profundas — e cada uma só abre caminho para quem a serviu.',
     thumbnail: '/games/profundio/thumbnail.webp',
     banner: '/games/profundio/banner.jpg',
-    // TODO: trocar pela URL da Cloudflare quando o projeto "profundio" estiver no ar.
-    gameUrl: '/builds/sandbox/?game=profundio',
-    hosting: 'self-hosted',
+    gameUrl: 'https://profund-io.antonycorp11.workers.dev/',
+    hosting: 'external',
     categories: ['aventura', 'progressao'],
     tags: ['Mineração', 'Exploração', 'Mistério', 'Singleplayer'],
     featured: true,
