@@ -35,6 +35,7 @@ const signedOutListeners = new Set<() => void>()
 
 let initPromise: Promise<Db | null> | null = null
 let lastUserId: string | null = null
+let ensuring: Promise<Db | null> | null = null
 
 function applySession(session: Session | null) {
   const user = session?.user ?? null
@@ -121,18 +122,27 @@ export const auth = {
     return () => signedOutListeners.delete(listener)
   },
 
-  /** Garante uma sessão (cria convidado se preciso). null = backend indisponível. */
-  async ensureSession(): Promise<Db | null> {
-    const db = await init()
-    if (!db) return null
-    const { data } = await db.auth.getSession()
-    if (data.session) return db
-    const { error } = await db.auth.signInAnonymously()
-    if (error) {
-      console.warn('[auth] não foi possível criar convidado:', error.message)
-      return null
-    }
-    return db
+  /**
+   * Garante uma sessão (cria convidado se preciso). null = backend indisponível.
+   * Chamadas simultâneas (jogar + favoritar ao mesmo tempo) compartilham a mesma
+   * promessa — senão cada uma criaria o seu próprio convidado.
+   */
+  ensureSession(): Promise<Db | null> {
+    ensuring ??= (async () => {
+      const db = await init()
+      if (!db) return null
+      const { data } = await db.auth.getSession()
+      if (data.session) return db
+      const { error } = await db.auth.signInAnonymously()
+      if (error) {
+        console.warn('[auth] não foi possível criar convidado:', error.message)
+        return null
+      }
+      return db
+    })().finally(() => {
+      ensuring = null
+    })
+    return ensuring
   },
 
   /** Cliente somente se já houver sessão — nunca cria conta. */
