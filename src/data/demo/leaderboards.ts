@@ -29,7 +29,7 @@ function build(seed: number, top: number, decay: number): LeaderboardEntry[] {
 
 export const demoLeaderboards: Record<string, LeaderboardEntry[]> = {
   global: build(0, 48_200, 0.86),
-  hemofarm: build(1, 1_284_500, 0.8),
+  hemofazenda: build(1, 1_284_500, 0.8),
   profundio: build(3, 9_870, 0.84),
 }
 

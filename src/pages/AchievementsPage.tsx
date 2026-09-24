@@ -9,7 +9,7 @@ import { Tabs } from '@/components/ui/Tabs'
 import { Notice } from '@/components/ui/Notice'
 import { AchievementCard } from '@/components/achievements/AchievementCard'
 
-const FILTERS = ['all', 'hemofarm', 'profundio'] as const
+const FILTERS = ['all', 'hemofazenda', 'profundio'] as const
 type Filter = (typeof FILTERS)[number]
 
 export default function AchievementsPage() {

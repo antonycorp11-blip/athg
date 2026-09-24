@@ -18,7 +18,7 @@ import { GameNotFound } from '@/components/games/GameNotFound'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { AdSlot } from '@/components/ads/AdSlot'
-import { Link } from 'react-router'
+import { Link, Navigate } from 'react-router'
 
 export default function GamePage() {
   const { slug } = useParams()
@@ -30,6 +30,7 @@ export default function GamePage() {
   useSeo(game ? gameMeta(game, t, SITE_URL) : null)
 
   if (!game) return <GameNotFound />
+  if (game.slug !== slug) return <Navigate to={`/game/${game.slug}`} replace />
 
   const playable = isPlayable(game)
   const onPlay = () => analytics.track('game_card_clicked', { game: game.slug, source: 'game_page', target: 'play' })

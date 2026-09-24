@@ -48,6 +48,8 @@ export interface GameTheme {
 export interface Game {
   id: string
   slug: string
+  /** Slugs antigos: links velhos redirecionam para o atual. */
+  previousSlugs?: string[]
   title: string
   /** Frase de efeito curta (hero). */
   tagline?: string

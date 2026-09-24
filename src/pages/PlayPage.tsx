@@ -37,6 +37,7 @@ export default function PlayPage() {
   }, [game])
 
   if (!game) return <GameNotFound />
+  if (game.slug !== slug) return <Navigate to={`/play/${game.slug}`} replace />
   // Em breve / sem build: a página do jogo explica o status.
   if (!playable || !game.gameUrl) return <Navigate to={`/game/${game.slug}`} replace />
 

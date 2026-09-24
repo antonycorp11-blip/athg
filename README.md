@@ -32,7 +32,7 @@ O build gera HTML estático com título/descrição/OG/JSON-LD próprios para ca
    - **Em outro domínio:** `gameUrl` absoluto + `hosting: 'external'` (o domínio precisa permitir iframe). Roda em sandbox.
    - Jogos de **terceiros** devem ficar em um domínio separado do portal, nunca em `/builds`.
 
-> ⚠️ Hemofarm e Profund.io apontam hoje para `/builds/sandbox/` — uma build de integração que testa o player e a ponte portal ↔ jogo. **Troque o `gameUrl` pelas builds reais.**
+> ⚠️ Hemofazenda e Profund.io apontam hoje para `/builds/sandbox/` — uma build de integração que testa o player e a ponte portal ↔ jogo. **Troque o `gameUrl` pelas builds reais.**
 
 Destaque da Home: [`src/data/home.ts`](src/data/home.ts). Categorias: [`src/data/categories.ts`](src/data/categories.ts).
 
@@ -47,7 +47,7 @@ Inclua no jogo:
   ATHG.gameStarted()
   ATHG.updateScore(1500)                       // ranking
   ATHG.gameOver(1500)
-  ATHG.unlockAchievement('hemofarm-first-harvest')
+  ATHG.unlockAchievement('hemofazenda-first-harvest')
   await ATHG.save({ nivel: 3 })                // hoje: dispositivo; futuro: nuvem
   const save = await ATHG.load()
   const ad = await ATHG.showRewardedAd()       // { status, rewarded } — hoje sempre 'unavailable'

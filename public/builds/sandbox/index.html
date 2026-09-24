@@ -73,10 +73,10 @@
     <script src="/sdk/athg-sdk.js"></script>
     <script>
       var games = {
-        hemofarm: { title: 'Hemofarm', accent: '#c8163a', achievement: 'hemofarm-first-harvest' },
+        hemofazenda: { title: 'Hemofazenda', accent: '#c8163a', achievement: 'hemofazenda-first-harvest' },
         profundio: { title: 'Profund.io', accent: '#0fb5c9', achievement: 'profundio-first-dive' },
       }
-      var slug = new URLSearchParams(location.search).get('game') || 'hemofarm'
+      var slug = new URLSearchParams(location.search).get('game') || 'hemofazenda'
       var g = games[slug] || { title: slug, accent: '#1677ff', achievement: slug + '-test' }
       document.getElementById('title').textContent = g.title
       document.title = g.title + ' — build de integração'

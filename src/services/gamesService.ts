@@ -6,7 +6,7 @@ import type { Category, CategoryId, Game, GameBadge } from '@/types/game'
 import { normalize } from '@/utils/text'
 
 const NEW_WINDOW_DAYS = 60
-const bySlug = new Map(games.map((g) => [g.slug, g]))
+const bySlug = new Map(games.flatMap((g) => [g.slug, ...(g.previousSlugs ?? [])].map((slug) => [slug, g] as const)))
 
 export type GameSort = 'all' | 'new' | 'popular' | 'trending' | 'az'
 

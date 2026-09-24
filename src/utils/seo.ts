@@ -7,7 +7,7 @@ import { site } from '../config/site.ts'
 export interface PageMeta {
   title: string
   description: string
-  /** Caminho canônico, ex: /game/hemofarm */
+  /** Caminho canônico, ex: /game/hemofazenda */
   path: string
   image?: string
   type?: 'website' | 'article'

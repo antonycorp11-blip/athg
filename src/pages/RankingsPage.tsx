@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { Podium } from '@/components/ranking/Podium'
 import { LeaderboardTable } from '@/components/ranking/LeaderboardTable'
 
-const BOARDS = ['global', 'hemofarm', 'profundio'] as const
+const BOARDS = ['global', 'hemofazenda', 'profundio'] as const
 type Board = (typeof BOARDS)[number]
 
 export default function RankingsPage() {
