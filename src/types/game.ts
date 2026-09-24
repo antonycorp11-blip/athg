@@ -72,6 +72,11 @@ export interface Game {
   /** Ordem editorial para "Mais jogados" enquanto não há métricas reais (menor = primeiro). */
   editorialRank?: number
   status: GameStatus
+  /**
+   * Prévia de desenvolvimento: com status 'coming-soon', contas admin (app_admins) já podem jogar.
+   * Para o público o jogo continua "Em breve". Controle só de interface: a build em /builds é pública.
+   */
+  adminPreview?: boolean
   /** ISO yyyy-mm-dd */
   releaseDate?: string
   developer: string

@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { useParams } from 'react-router'
 import { Play, Share2, Hourglass, Gamepad2, ScrollText, Image, Layers, Info, Code, Calendar, MonitorSmartphone, RotateCw } from 'lucide-react'
-import { gamesService, isPlayable } from '@/services/gamesService'
+import { gamesService, isAdminPreview, isPlayable } from '@/services/gamesService'
+import { useIsAdmin } from '@/hooks/useIsAdmin'
 import { analytics } from '@/services/analytics'
 import { useSeo } from '@/hooks/useSeo'
 import { useShareGame } from '@/hooks/useShare'
@@ -26,13 +27,15 @@ export default function GamePage() {
   const { t, locale } = useTranslation()
   const share = useShareGame()
   const related = useMemo(() => (game ? gamesService.getRelated(game) : []), [game])
+  const isAdmin = useIsAdmin()
 
   useSeo(game ? gameMeta(game, t, SITE_URL) : null)
 
   if (!game) return <GameNotFound />
   if (game.slug !== slug) return <Navigate to={`/game/${game.slug}`} replace />
 
-  const playable = isPlayable(game)
+  const playable = isPlayable(game, isAdmin)
+  const preview = isAdminPreview(game, isAdmin)
   const onPlay = () => analytics.track('game_card_clicked', { game: game.slug, source: 'game_page', target: 'play' })
 
   const info = [
@@ -78,6 +81,15 @@ export default function GamePage() {
 
       <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8">
         <div className="min-w-0 space-y-10">
+          {preview && (
+            <div className="flex items-start gap-3 rounded-card border border-brand/40 bg-brand/10 p-4">
+              <Code size={18} className="mt-0.5 shrink-0 text-brand" aria-hidden />
+              <div>
+                <p className="font-semibold">Prévia de desenvolvimento (admin)</p>
+                <p className="text-sm text-muted">Só contas admin veem o botão Jogar. Para o público este jogo continua como “Em breve”.</p>
+              </div>
+            </div>
+          )}
           {!playable && (
             <div className="flex items-start gap-3 rounded-card border border-violet/30 bg-violet/10 p-4">
               <Hourglass size={18} className="mt-0.5 shrink-0 text-[#b69cff]" aria-hidden />

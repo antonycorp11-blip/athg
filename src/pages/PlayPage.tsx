@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
 import { Share2, Flag, ArrowLeft, Sparkles, Layers } from 'lucide-react'
 import { gamesService, isPlayable } from '@/services/gamesService'
+import { useAuthStatus, useIsAdmin } from '@/hooks/useIsAdmin'
 import { useSeo } from '@/hooks/useSeo'
 import { useShareGame } from '@/hooks/useShare'
 import { usePlaySession } from '@/hooks/usePlaySession'
@@ -23,7 +24,17 @@ export default function PlayPage() {
   const { t } = useTranslation()
   const share = useShareGame()
   const [reportOpen, setReportOpen] = useState(false)
-  const playable = Boolean(game && isPlayable(game))
+  const isAdmin = useIsAdmin()
+  const authStatus = useAuthStatus()
+  const playable = Boolean(game && isPlayable(game, isAdmin))
+  // Prévia admin: a flag de admin chega depois do login/sync. Espera um pouco antes de mandar embora.
+  const [adminWaitOver, setAdminWaitOver] = useState(false)
+  const awaitingAdmin = Boolean(game?.adminPreview && game.status === 'coming-soon' && !isAdmin && !adminWaitOver && authStatus !== 'unavailable')
+  useEffect(() => {
+    if (!awaitingAdmin) return
+    const timer = setTimeout(() => setAdminWaitOver(true), 5000)
+    return () => clearTimeout(timer)
+  }, [awaitingAdmin])
 
   usePlaySession(game?.slug, playable)
   useSeo(game ? { title: t('seo.playTitle', { title: game.title }), description: game.shortDescription, path: `/game/${game.slug}`, noindex: true } : null)
@@ -38,6 +49,7 @@ export default function PlayPage() {
 
   if (!game) return <GameNotFound />
   if (game.slug !== slug) return <Navigate to={`/play/${game.slug}`} replace />
+  if (awaitingAdmin) return <div className="py-24 text-center text-sm text-muted">Verificando acesso…</div>
   // Em breve / sem build: a página do jogo explica o status.
   if (!playable || !game.gameUrl) return <Navigate to={`/game/${game.slug}`} replace />
 

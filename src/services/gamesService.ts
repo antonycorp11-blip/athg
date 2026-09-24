@@ -10,7 +10,11 @@ const bySlug = new Map(games.flatMap((g) => [g.slug, ...(g.previousSlugs ?? [])]
 
 export type GameSort = 'all' | 'new' | 'popular' | 'trending' | 'az'
 
-export const isPlayable = (g: Game) => g.status !== 'coming-soon' && Boolean(g.gameUrl)
+export const isPlayable = (g: Game, isAdmin = false) =>
+  (g.status !== 'coming-soon' || (isAdmin && Boolean(g.adminPreview))) && Boolean(g.gameUrl)
+
+/** Jogo em desenvolvimento liberado só para admins (prévia). */
+export const isAdminPreview = (g: Game, isAdmin: boolean) => isAdmin && g.status === 'coming-soon' && Boolean(g.adminPreview && g.gameUrl)
 
 export function isNewRelease(g: Game, now = Date.now()) {
   if (!g.releaseDate || g.status === 'coming-soon') return false
@@ -57,7 +61,7 @@ export const gamesService = {
         list = list.filter((g) => g.status !== 'coming-soon').sort(byRelease)
         break
       case 'popular':
-        list = list.filter(isPlayable).sort(byEditorial)
+        list = list.filter((g) => isPlayable(g)).sort(byEditorial)
         break
       case 'trending':
         list = list.filter((g) => g.trending && isPlayable(g)).sort(byEditorial)
