@@ -9,7 +9,7 @@ import type { Game } from '../types/game.ts'
 //      e aponte `thumbnail`, `banner` e `screenshots` para elas.
 //      Sem arte? Deixe vazio: a plataforma gera um placeholder a partir de `theme`.
 //   3. Build própria: copie para /public/builds/<slug>/ e use
-//      gameUrl: '/builds/<slug>/index.html' + hosting: 'self-hosted'.
+//      gameUrl: '/builds/<slug>/' + hosting: 'self-hosted'.
 //      Build em outro domínio: gameUrl absoluto + hosting: 'external'.
 //
 // IMPORTANTE: este arquivo é lido também no build (SEO/sitemap), então use
@@ -26,8 +26,8 @@ export const games: Game[] = [
       'Gerencie uma fazenda vampírica, otimize a produção e mantenha seu império bem alimentado.',
     description:
       'Você é um vampiro com um problema de abastecimento. Em Hemofarm, você monta, expande e administra a sua própria fazenda de sangue. Planeje a produção, gerencie recursos, desbloqueie melhorias e tome decisões estratégicas para que o seu império noturno nunca passe fome.',
-    // TODO: trocar pela build real do Hemofarm (URL externa ou /builds/hemofarm/index.html).
-    gameUrl: '/builds/sandbox/index.html?game=hemofarm',
+    // TODO: trocar pela build real do Hemofarm (URL externa ou /builds/hemofarm/).
+    gameUrl: '/builds/sandbox/?game=hemofarm',
     hosting: 'self-hosted',
     categories: ['gerenciamento', 'estrategia'],
     tags: ['Vampiros', 'Fazenda', 'Singleplayer'],
@@ -58,7 +58,7 @@ export const games: Game[] = [
     description:
       'Profund.io é uma aventura de progressão sobre ir além do limite. Explore camadas cada vez mais profundas, colete recursos, melhore seu equipamento e descubra o que existe lá embaixo. Cada descida deixa você mais forte para a próxima.',
     // TODO: trocar pela build real do Profund.io.
-    gameUrl: '/builds/sandbox/index.html?game=profundio',
+    gameUrl: '/builds/sandbox/?game=profundio',
     hosting: 'self-hosted',
     categories: ['aventura', 'progressao'],
     tags: ['Exploração', 'Upgrades', 'Singleplayer'],

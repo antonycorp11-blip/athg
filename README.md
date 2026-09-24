@@ -11,14 +11,16 @@ npm run build      # typecheck + build + páginas SEO + sitemap
 npm run preview    # testa o build de produção
 ```
 
-## Publicar no Cloudflare Pages
+## Publicação (Cloudflare)
+
+No ar em https://athg.antonycorp11.workers.dev — cada push na `main` publica.
 
 - **Build command:** `npm run build`
 - **Output directory:** `dist`
-- **Variável de ambiente:** `VITE_SITE_URL=https://seu-dominio` (canonical, Open Graph, sitemap). Sem ela, usa `https://athg.pages.dev`.
+- **Variável de ambiente:** `VITE_SITE_URL=https://seu-dominio` (canonical, Open Graph, sitemap). Sem ela, usa `https://athg.antonycorp11.workers.dev`.
 - Node 22 (arquivo `.node-version`).
 
-O build gera HTML estático com título/descrição/OG/JSON-LD próprios para cada jogo (`/game/<slug>`), categoria e página principal, além de `sitemap.xml` e `robots.txt`. As demais rotas caem no modo SPA do Pages (não crie `404.html`).
+O build gera HTML estático com título/descrição/OG/JSON-LD próprios para cada jogo (`/game/<slug>`), categoria e página principal, além de `sitemap.xml` e `robots.txt`. As demais rotas caem no modo SPA da Cloudflare (não crie `404.html`).
 
 ## Adicionar um jogo
 
@@ -26,7 +28,7 @@ O build gera HTML estático com título/descrição/OG/JSON-LD próprios para ca
 2. Artes em `public/games/<slug>/` → preencha `thumbnail` (16:9), `banner` e `screenshots`.
    Sem arte, a plataforma gera um placeholder a partir de `theme` (cores + motivo).
 3. Build do jogo:
-   - **Hospedada na ATHG:** copie para `public/builds/<slug>/` e use `gameUrl: '/builds/<slug>/index.html'`, `hosting: 'self-hosted'`.
+   - **Hospedada na ATHG:** copie para `public/builds/<slug>/` e use `gameUrl: '/builds/<slug>/'` (com barra no fim: a Cloudflare redireciona `index.html`), `hosting: 'self-hosted'`.
    - **Em outro domínio:** `gameUrl` absoluto + `hosting: 'external'` (o domínio precisa permitir iframe). Roda em sandbox.
    - Jogos de **terceiros** devem ficar em um domínio separado do portal, nunca em `/builds`.
 

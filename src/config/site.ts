@@ -1,5 +1,5 @@
 // Configuração pública da plataforma. Dados puros (lido também no build).
-export const DEFAULT_SITE_URL = 'https://athg.pages.dev'
+export const DEFAULT_SITE_URL = 'https://athg.antonycorp11.workers.dev'
 
 export const site = {
   name: 'ATHG',
