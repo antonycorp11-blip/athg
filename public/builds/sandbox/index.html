@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>ATHG — Build de integração</title>
+    <!--
+      BUILD DE INTEGRAÇÃO (placeholder)
+      Esta página ocupa o lugar da build real enquanto ela não é conectada.
+      Serve para testar o player e a ponte portal <-> jogo (SDK).
+      Para trocar: em src/data/games.ts, aponte gameUrl para a build real.
+    -->
+    <style>
+      :root { color-scheme: dark; --brand: #1677ff; --cyan: #15c8ff; --muted: #94a3b8; --line: rgba(255,255,255,.08) }
+      * { box-sizing: border-box }
+      html, body { height: 100%; margin: 0 }
+      body {
+        font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #f5f7fa;
+        background: radial-gradient(70% 90% at 75% 10%, color-mix(in srgb, var(--accent, #1677ff) 35%, transparent), transparent 60%), #060b14;
+        display: grid; grid-template-rows: auto 1fr; overflow: hidden; user-select: none;
+      }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line) }
+      h1 { margin: 0; font-size: clamp(18px, 4vw, 28px); letter-spacing: .02em; text-transform: uppercase }
+      .tag { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: #f6c453; border: 1px solid rgba(246,196,83,.35); padding: 3px 7px; border-radius: 5px; white-space: nowrap }
+      main { display: grid; grid-template-columns: minmax(0,1fr) minmax(220px, 34%); min-height: 0 }
+      @media (max-width: 640px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 38% } }
+      .stage { position: relative; display: grid; place-items: center; min-height: 0; padding: 16px }
+      #orb {
+        width: min(34vmin, 180px); aspect-ratio: 1; border-radius: 50%; border: 0; cursor: pointer;
+        background: radial-gradient(circle at 35% 30%, #fff 0 6%, var(--accent, #1677ff) 40%, #041022 100%);
+        box-shadow: 0 0 60px -10px var(--accent, #1677ff); transition: transform .12s;
+      }
+      #orb:active { transform: scale(.94) }
+      .score { position: absolute; top: 16px; left: 16px; font-size: 12px; color: var(--muted) }
+      .score b { display: block; font-size: 28px; color: #fff }
+      .hint { position: absolute; bottom: 14px; left: 16px; right: 16px; text-align: center; color: var(--muted); font-size: 12px }
+      aside { border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0 }
+      @media (max-width: 640px) { aside { border-left: 0; border-top: 1px solid var(--line) } }
+      .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px }
+      button.act { height: 34px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: #f5f7fa; font: 600 12px system-ui; cursor: pointer }
+      button.act:hover { background: rgba(255,255,255,.11) }
+      #log { flex: 1; overflow: auto; margin: 0; padding: 10px; font: 11px/1.5 ui-monospace, Menlo, monospace; color: #9fb3c8; border-top: 1px solid var(--line) }
+      #log .in { color: var(--cyan) } #log .out { color: #b69cff }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1 id="title">Jogo</h1>
+        <div style="color: var(--muted); font-size: 12px">Build de integração — substitua pela build real do jogo.</div>
+      </div>
+      <span class="tag">Sandbox</span>
+    </header>
+    <main>
+      <section class="stage">
+        <div class="score">Pontos (teste)<b id="score">0</b></div>
+        <button id="orb" aria-label="Gerar pontos de teste"></button>
+        <p class="hint">Clique no orbe para gerar pontos e testar SCORE_UPDATED.</p>
+      </section>
+      <aside>
+        <div class="buttons">
+          <button class="act" data-act="start">GAME_STARTED</button>
+          <button class="act" data-act="over">GAME_OVER</button>
+          <button class="act" data-act="ach">Conquista</button>
+          <button class="act" data-act="ad">Rewarded ad</button>
+          <button class="act" data-act="save">SAVE_GAME</button>
+          <button class="act" data-act="load">LOAD_GAME</button>
+        </div>
+        <pre id="log" aria-live="polite"></pre>
+      </aside>
+    </main>
+    <script src="/sdk/athg-sdk.js"></script>
+    <script>
+      var games = {
+        hemofarm: { title: 'Hemofarm', accent: '#c8163a', achievement: 'hemofarm-first-harvest' },
+        profundio: { title: 'Profund.io', accent: '#0fb5c9', achievement: 'profundio-first-dive' },
+      }
+      var slug = new URLSearchParams(location.search).get('game') || 'hemofarm'
+      var g = games[slug] || { title: slug, accent: '#1677ff', achievement: slug + '-test' }
+      document.getElementById('title').textContent = g.title
+      document.title = g.title + ' — build de integração'
+      document.body.style.setProperty('--accent', g.accent)
+
+      var score = 0
+      var logEl = document.getElementById('log')
+      function log(dir, text) {
+        var line = document.createElement('div')
+        line.className = dir
+        line.textContent = (dir === 'out' ? '→ ' : '← ') + text
+        logEl.prepend(line)
+      }
+
+      log('in', ATHG.isInPortal ? 'Rodando dentro do portal ATHG' : 'Rodando fora do portal (modo standalone)')
+      ATHG.on('init', function (info) { log('in', 'PORTAL_INIT ' + JSON.stringify(info)) })
+      ATHG.on('pause', function () { log('in', 'PAUSE') })
+      ATHG.on('resume', function () { log('in', 'RESUME') })
+
+      document.getElementById('orb').addEventListener('click', function () {
+        score += 10
+        document.getElementById('score').textContent = score
+        if (score % 50 === 0) { ATHG.updateScore(score); log('out', 'SCORE_UPDATED ' + score) }
+      })
+
+      var actions = {
+        start: function () { ATHG.gameStarted(); log('out', 'GAME_STARTED') },
+        over: function () { ATHG.gameOver(score); log('out', 'GAME_OVER score=' + score) },
+        ach: function () { ATHG.unlockAchievement(g.achievement); log('out', 'ACHIEVEMENT_UNLOCKED ' + g.achievement) },
+        ad: function () { log('out', 'REQUEST_REWARDED_AD'); ATHG.showRewardedAd().then(function (r) { log('in', 'REWARDED_AD_RESULT ' + JSON.stringify(r)) }) },
+        save: function () { log('out', 'SAVE_GAME score=' + score); ATHG.save({ score: score, at: Date.now() }).then(function (r) { log('in', 'SAVE_RESULT ' + JSON.stringify(r)) }) },
+        load: function () {
+          log('out', 'LOAD_GAME')
+          ATHG.load().then(function (d) {
+            log('in', 'LOAD_RESULT ' + JSON.stringify(d))
+            if (d && typeof d.score === 'number') { score = d.score; document.getElementById('score').textContent = score }
+          })
+        },
+      }
+      document.querySelectorAll('[data-act]').forEach(function (b) { b.addEventListener('click', function () { actions[b.dataset.act]() }) })
+
+      ATHG.ready()
+      log('out', 'GAME_READY')
+    </script>
+  </body>
+</html>
