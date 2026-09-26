@@ -14,7 +14,7 @@ import { remote } from '@/services/backend/remote'
 import { startSync } from '@/services/backend/sync'
 import { router, prefetchCoreRoutes } from './routes'
 
-// Perfil local de convidado (play first: nada de cadastro para jogar).
+// Perfil local (nome/avatar) até a conta carregar; jogar exige conta.
 ensureIdentity()
 // Backend: sincroniza quando houver sessão; eventos relevantes vão para o banco.
 startSync()

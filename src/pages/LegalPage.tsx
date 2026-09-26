@@ -14,7 +14,6 @@ const privacy: [string, string[]][] = [
     'O que coletamos',
     [
       'Conta: email e senha (a senha é armazenada de forma criptografada pelo nosso provedor de autenticação; nós não temos acesso a ela). Nome de jogador que você escolher.',
-      'Convidado: ao jogar sem conta, criamos um identificador anônimo, sem email ou dados pessoais, para registrar seu progresso.',
       'Atividade na plataforma: jogos acessados, tempo de jogo ativo, favoritos, conquistas, pontuações, saves dos jogos, buscas e cliques em jogos.',
       'Dados técnicos: tipo de aparelho (celular, tablet ou computador) e, quando você reporta um problema, o navegador usado e a página em que estava.',
     ],
@@ -41,7 +40,6 @@ const privacy: [string, string[]][] = [
     [
       'Você pode acessar, corrigir e excluir seus dados. O nome de jogador pode ser alterado no Perfil.',
       'Excluir conta: no Perfil, use "Excluir minha conta". Isso apaga sua conta e todo o seu progresso de forma definitiva.',
-      'Convidados podem apagar os dados do navegador a qualquer momento limpando os dados do site.',
       `Para qualquer pedido sobre seus dados (acesso, correção, exclusão ou dúvidas), escreva para ${site.contactEmail}.`,
     ],
   ],

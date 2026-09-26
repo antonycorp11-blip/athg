@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
 import { Share2, Flag, ArrowLeft, Sparkles, Layers } from 'lucide-react'
 import { gamesService, isPlayable } from '@/services/gamesService'
-import { useAuthStatus, useIsAdmin } from '@/hooks/useIsAdmin'
+import { useAccount, useAuthStatus, useIsAdmin } from '@/hooks/useIsAdmin'
 import { useSeo } from '@/hooks/useSeo'
 import { useShareGame } from '@/hooks/useShare'
 import { usePlaySession } from '@/hooks/usePlaySession'
 import { useTranslation } from '@/i18n/useTranslation'
 import { GamePlayer } from '@/components/player/GamePlayer'
+import { AccountGate } from '@/components/account/AccountGate'
 import { ReportProblemModal } from '@/components/player/ReportProblemModal'
 import { GameArt } from '@/components/games/GameArt'
 import { FavoriteButton } from '@/components/games/FavoriteButton'
@@ -36,7 +37,9 @@ export default function PlayPage() {
     return () => clearTimeout(timer)
   }, [awaitingAdmin])
 
-  usePlaySession(game?.slug, playable)
+  // Jogar exige conta: sem ela, o player dá lugar ao convite para entrar/criar conta.
+  const account = useAccount()
+  usePlaySession(game?.slug, playable && account === 'signed-in')
   useSeo(game ? { title: t('seo.playTitle', { title: game.title }), description: game.shortDescription, path: `/game/${game.slug}`, noindex: true } : null)
 
   const { originals, similar } = useMemo(() => {
@@ -49,40 +52,44 @@ export default function PlayPage() {
 
   if (!game) return <GameNotFound />
   if (game.slug !== slug) return <Navigate to={`/play/${game.slug}`} replace />
-  if (awaitingAdmin) return <div className="py-24 text-center text-sm text-muted">Verificando acesso…</div>
+  if (awaitingAdmin || account === 'checking') return <div className="py-24 text-center text-sm text-muted">Verificando acesso…</div>
   // Em breve / sem build: a página do jogo explica o status.
   if (!playable || !game.gameUrl) return <Navigate to={`/game/${game.slug}`} replace />
 
   return (
     <div className="pt-0 md:pt-5">
-      <GamePlayer
-        key={game.slug}
-        slug={game.slug}
-        gameUrl={resolveGameUrl(game)}
-        title={game.title}
-        orientation={game.orientation}
-        supportsMobile={game.supportsMobile}
-        aspectRatio={game.aspectRatio}
-        poster={<GameArt game={game} variant="banner" showTitle={false} />}
-        toolbarStart={
-          <Link to={`/game/${game.slug}`} className="group flex min-w-0 items-center gap-2.5" aria-label={t('player.backToGame')}>
-            <span className="hidden aspect-video w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-line xs:block">
-              <GameArt game={game} showTitle={false} />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold group-hover:text-cyan">{game.title}</span>
-              <span className="block truncate text-xs text-muted">{t('common.by', { name: game.developer })}</span>
-            </span>
-          </Link>
-        }
-        toolbarActions={
-          <>
-            <FavoriteButton game={game} className="size-10 border-0 bg-transparent backdrop-blur-none hover:bg-white/[0.07] hover:scale-100" />
-            <IconButton icon={Share2} label={t('common.share')} onClick={() => share(game, 'player')} />
-            <IconButton icon={Flag} label={t('player.report')} onClick={() => setReportOpen(true)} />
-          </>
-        }
-      />
+      {account !== 'signed-in' ? (
+        <AccountGate title={game.title} poster={<GameArt game={game} variant="banner" showTitle={false} />} />
+      ) : (
+        <GamePlayer
+          key={game.slug}
+          slug={game.slug}
+          gameUrl={resolveGameUrl(game)}
+          title={game.title}
+          orientation={game.orientation}
+          supportsMobile={game.supportsMobile}
+          aspectRatio={game.aspectRatio}
+          poster={<GameArt game={game} variant="banner" showTitle={false} />}
+          toolbarStart={
+            <Link to={`/game/${game.slug}`} className="group flex min-w-0 items-center gap-2.5" aria-label={t('player.backToGame')}>
+              <span className="hidden aspect-video w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-line xs:block">
+                <GameArt game={game} showTitle={false} />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold group-hover:text-cyan">{game.title}</span>
+                <span className="block truncate text-xs text-muted">{t('common.by', { name: game.developer })}</span>
+              </span>
+            </Link>
+          }
+          toolbarActions={
+            <>
+              <FavoriteButton game={game} className="size-10 border-0 bg-transparent backdrop-blur-none hover:bg-white/[0.07] hover:scale-100" />
+              <IconButton icon={Share2} label={t('common.share')} onClick={() => share(game, 'player')} />
+              <IconButton icon={Flag} label={t('player.report')} onClick={() => setReportOpen(true)} />
+            </>
+          }
+        />
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-6 md:mt-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div className="max-w-3xl">

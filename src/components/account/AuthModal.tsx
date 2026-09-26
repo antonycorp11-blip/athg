@@ -112,8 +112,9 @@ export function AuthModal() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className={inputClass}
-                placeholder="voce@email.com"
+                placeholder={mode === 'signup' ? 'voce@gmail.com' : 'voce@email.com'}
               />
+              {mode === 'signup' && <span className="mt-1 block text-[11px] text-subtle">{t('account.emailHint')}</span>}
             </label>
           )}
           {mode !== 'forgot' && (

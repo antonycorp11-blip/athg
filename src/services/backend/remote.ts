@@ -35,7 +35,7 @@ async function flushEvents() {
 export const remote = {
   // ---------- Sessões de jogo ----------
   async startSession(game: string): Promise<string | null> {
-    const db = await auth.ensureSession()
+    const db = await auth.sessionClient()
     if (!db) return null
     const { data, error } = await db.rpc('start_session', { p_game: game, p_device: currentDevice() })
     warn('start_session', error)
@@ -51,7 +51,7 @@ export const remote = {
 
   // ---------- Favoritos ----------
   async setFavorite(game: string, favorite: boolean) {
-    const db = await auth.ensureSession()
+    const db = await auth.sessionClient()
     const userId = authStore.get().userId
     if (!db || !userId) return
     const { error } = favorite
@@ -80,7 +80,7 @@ export const remote = {
 
   // ---------- Saves ----------
   async saveGame(game: string, slot: string, data: unknown): Promise<boolean> {
-    const db = await auth.ensureSession()
+    const db = await auth.sessionClient()
     const userId = authStore.get().userId
     if (!db || !userId) return false
     const { error } = await db
@@ -100,7 +100,7 @@ export const remote = {
 
   // ---------- Reports ----------
   async report(input: { game: string; type: string; details: string; userAgent: string; url: string }) {
-    const db = await auth.ensureSession()
+    const db = await auth.sessionClient()
     const userId = authStore.get().userId
     if (!db || !userId) return false
     const { error } = await db.from('problem_reports').insert({
@@ -117,7 +117,7 @@ export const remote = {
 
   // ---------- Perfil ----------
   async updateUsername(username: string): Promise<'ok' | 'taken' | 'error'> {
-    const db = await auth.ensureSession()
+    const db = await auth.sessionClient()
     const userId = authStore.get().userId
     if (!db || !userId) return 'error'
     const { error } = await db.from('profiles').update({ username }).eq('id', userId)

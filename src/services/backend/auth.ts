@@ -1,11 +1,12 @@
-// Autenticação ATHG — "play first":
-// - Ninguém precisa de conta para jogar. Ao jogar pela primeira vez, criamos
-//   uma conta anônima (convidado) para registrar progresso e horas.
-// - Ao entrar ou criar conta, o progresso do convidado é transferido para a
-//   conta (token de fusão + função merge_guest no banco).
+// Autenticação ATHG:
+// - Para jogar é preciso ter conta (email + senha, só Gmail/Outlook/iCloud).
+//   Não criamos mais convidados anônimos.
+// - Convidados antigos que ainda têm sessão neste aparelho: ao entrar ou criar
+//   conta, o progresso deles é transferido (token de fusão + merge_guest).
 import type { Session } from '@supabase/supabase-js'
 import { createMemoryStore } from '../persistentStore'
 import { storage } from '../storage'
+import { isAllowedEmail } from '@/config/site'
 import { backendConfigured, getBackend, hasStoredSession, urlHasAuthCallback, type Db } from './client'
 
 export interface AuthState {
@@ -35,7 +36,6 @@ const signedOutListeners = new Set<() => void>()
 
 let initPromise: Promise<Db | null> | null = null
 let lastUserId: string | null = null
-let ensuring: Promise<Db | null> | null = null
 
 function applySession(session: Session | null) {
   const user = session?.user ?? null
@@ -102,7 +102,8 @@ function authError(err: { message?: string; code?: string } | null | undefined):
   else if (code === 'email_not_confirmed' || m.includes('not confirmed')) error = 'emailNotConfirmed'
   else if (code === 'weak_password' || m.includes('password')) error = 'weakPassword'
   else if (code.startsWith('over_') || m.includes('rate limit') || m.includes('too many')) error = 'rateLimited'
-  else if (code === 'anonymous_provider_disabled' || m.includes('anonymous')) error = 'guestDisabled'
+  // Gatilho enforce_account_email recusou (o Auth devolve só "Database error saving new user").
+  else if (m.includes('database error saving new user')) error = 'emailDomain'
   return { ok: false, error }
 }
 
@@ -122,29 +123,6 @@ export const auth = {
     return () => signedOutListeners.delete(listener)
   },
 
-  /**
-   * Garante uma sessão (cria convidado se preciso). null = backend indisponível.
-   * Chamadas simultâneas (jogar + favoritar ao mesmo tempo) compartilham a mesma
-   * promessa — senão cada uma criaria o seu próprio convidado.
-   */
-  ensureSession(): Promise<Db | null> {
-    ensuring ??= (async () => {
-      const db = await init()
-      if (!db) return null
-      const { data } = await db.auth.getSession()
-      if (data.session) return db
-      const { error } = await db.auth.signInAnonymously()
-      if (error) {
-        console.warn('[auth] não foi possível criar convidado:', error.message)
-        return null
-      }
-      return db
-    })().finally(() => {
-      ensuring = null
-    })
-    return ensuring
-  },
-
   /** Cliente somente se já houver sessão — nunca cria conta. */
   async sessionClient(): Promise<Db | null> {
     if (!authStore.get().userId && !hasStoredSession()) return null
@@ -162,6 +140,7 @@ export const auth = {
   },
 
   async signUp(email: string, password: string): Promise<AuthResult> {
+    if (!isAllowedEmail(email)) return { ok: false, error: 'emailDomain' }
     const db = await init()
     if (!db) return { ok: false, error: 'unavailable' }
     await prepareGuestMerge(db)

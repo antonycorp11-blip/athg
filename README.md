@@ -1,6 +1,6 @@
 # ATHG — plataforma de jogos web (V1)
 
-Jogue direto no navegador. Sem instalação, sem cadastro. **Play first.**
+Jogue direto no navegador. Sem instalação.
 
 React 19 · TypeScript · Vite 8 · Tailwind CSS 4 · React Router 7. Sem backend na V1.
 
@@ -82,13 +82,13 @@ Componentes nunca leem `src/data` direto: sempre via `services/`. Para ligar uma
 | Rankings reais | `rankingService.getLeaderboard()` |
 | Reports | `reportService.submit()` → `POST /api/reports` |
 
-## Backend (Supabase — projeto ATHG, São Paulo)
+## Backend (Supabase — projeto ATHG `kdcgdkzdjdkebadnupgu`, São Paulo)
 
-- **Contas:** convidado anônimo criado ao jogar pela primeira vez; email + senha opcionais. Ao entrar/criar conta, o progresso do convidado é transferido (`merge_guest`).
+- **Contas:** obrigatórias para jogar (email + senha, sem confirmação por email). Só Gmail, Outlook/Hotmail/Live e iCloud: lista em `src/config/site.ts` e no gatilho `enforce_account_email` em `auth.users`, que também recusa contas anônimas. Convidados antigos que ainda tenham sessão têm o progresso transferido ao criar conta (`merge_guest`).
 - **Dados:** perfis, sessões de jogo (tempo ativo validado no servidor), favoritos, conquistas, pontuações, saves, eventos e reports — todos com RLS.
 - **Painel admin:** `/admin`, só para contas em `public.app_admins`. Para adicionar um admin (SQL Editor do Supabase):
   `insert into app_admins (user_id) select id from auth.users where email = 'email@da.conta';`
-- **Configuração no painel do Supabase:** Authentication → Sign In / Providers → *Allow anonymous sign-ins* ligado; Authentication → URL Configuration → Site URL e Redirect URLs (`https://athg.antonycorp11.workers.dev/**`, `http://localhost:5173/**`).
+- **Configuração no painel do Supabase:** Authentication → Sign In / Providers → *Allow anonymous sign-ins* desligado e *Confirm email* desligado; Authentication → URL Configuration → Site URL e Redirect URLs (`https://athg.antonycorp11.workers.dev/**`, `http://localhost:5173/**`).
 - Chave publicável e URL ficam em `src/config/site.ts` (públicas por natureza; a segurança é o RLS). **Nunca** use a chave secret no site.
 
 ## O que é real e o que é demo

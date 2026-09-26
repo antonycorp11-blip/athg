@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { openAuthModal } from './authModalStore'
 
-/** Estado da conta no perfil: convidado (CTA para criar conta) ou conectado. */
+/** Estado da conta no perfil: sem conta (CTA para entrar/criar) ou conectado. */
 export function AccountCard() {
   const { t } = useTranslation()
   const { toast } = useToast()
