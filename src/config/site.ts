@@ -17,6 +17,6 @@ export const normalizeSiteUrl = (url: string | undefined) => (url || DEFAULT_SIT
 // Supabase (backend). A URL e a chave publicável são públicas por natureza:
 // a segurança vem das regras RLS do banco. NUNCA coloque a chave secret aqui.
 export const supabaseDefaults = {
-  url: 'https://ukbtlujqhguxxvieutjf.supabase.co',
-  publishableKey: 'sb_publishable_yDq5GnTQivFl-_FmqK1Jzg_ZwqxCBfh',
+  url: 'https://kdcgdkzdjdkebadnupgu.supabase.co',
+  publishableKey: 'sb_publishable_ANUtklosjEqev3UXEFeEwA_WANBDrcW',
 }
