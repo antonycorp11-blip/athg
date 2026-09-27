@@ -133,10 +133,10 @@ export const games: Game[] = [
     status: 'released',
     releaseDate: '2026-09-27',
     developer: 'ATHG',
-    supportsMobile: false,
+    supportsMobile: true,
     orientation: 'landscape',
     instructions: [
-      'Clique num rosto da fila para a pessoa entrar no salão e dizer o que quer.',
+      'No celular, jogue com a tela deitada. Toque num rosto da fila para a pessoa entrar no salão.',
       'Cada dia vai das 8h às 20h: audiências, leituras e decretos gastam horas.',
       'Peça conselho a quem está ao seu lado no trono e use Influência para suavizar decisões duras.',
       'No fim do dia, veja o resumo: casas contentes, casas furiosas e o que você deixou sem resposta.',
