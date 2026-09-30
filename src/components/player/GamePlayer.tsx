@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Maximize, Minimize, X, RotateCw, Monitor, RefreshCw, TriangleAlert } from 'lucide-react'
 import type { Orientation } from '@/types/game'
@@ -52,10 +53,16 @@ export function GamePlayer({ slug, gameUrl, title, orientation, supportsMobile, 
   const [pseudoFs, setPseudoFs] = useState(false)
   const [gateDismissed, setGateDismissed] = useState(false)
   const [autoImmersiveOff, setAutoImmersiveOff] = useState(false)
+  const [ownExit, setOwnExit] = useState(false) // o jogo desenha o próprio botão de sair
+  const navigate = useNavigate()
 
   const isTouch = useIsTouch()
   const isPortrait = useIsPortrait()
-  const onFrameLoad = useGameBridge(iframeRef, slug, gameUrl, frameKey)
+  const onFrameLoad = useGameBridge(iframeRef, slug, gameUrl, frameKey, {
+    onOwnExit: () => setOwnExit(true),
+    // "Sair do jogo" no menu do jogo: sai da tela cheia e volta à página do jogo
+    onExit: () => { if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}); setPseudoFs(false); setAutoImmersiveOff(true); navigate(`/game/${slug}`) },
+  })
   const crossOrigin = originOf(gameUrl) !== window.location.origin
 
   // Celular deitado = modo imersivo automático (header/nav somem).
@@ -221,7 +228,7 @@ export function GamePlayer({ slug, gameUrl, title, orientation, supportsMobile, 
         )}
 
         {/* Saída do modo imersivo (pseudo) */}
-        {pseudoImmersive && (
+        {pseudoImmersive && !ownExit && (
           <IconButton
             icon={X}
             label={t('player.exitFullscreen')}

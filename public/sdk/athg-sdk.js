@@ -12,6 +12,8 @@
  *   const data = await ATHG.load()
  *   const ad = await ATHG.showRewardedAd() // { status, rewarded }
  *   ATHG.on('pause', fn) / ATHG.on('resume', fn) / ATHG.on('init', fn)
+ *   ATHG.ownExitButton()                // o jogo tem botão de sair: o portal esconde o X
+ *   ATHG.exit()                         // sair do jogo (volta à página do jogo)
  *
  * Fora do portal (jogo aberto direto), save/load usam localStorage e
  * anúncios retornam { status: 'unavailable' } — o jogo roda normalmente.
@@ -86,6 +88,8 @@
     gameOver: function (score) { post('GAME_OVER', { score: score }) },
     updateScore: function (score, leaderboard) { post('SCORE_UPDATED', { score: Number(score), leaderboard: leaderboard }) },
     unlockAchievement: function (id) { post('ACHIEVEMENT_UNLOCKED', { id: String(id) }) },
+    ownExitButton: function () { post('OWN_EXIT_BUTTON') },
+    exit: function () { post('EXIT_REQUEST') },
     save: function (data, slot) {
       return request('SAVE_GAME', { data: data, slot: slot }, function () {
         try { localStorage.setItem(localKey(slot), JSON.stringify(data)); return { ok: true } } catch (e) { return { ok: false } }

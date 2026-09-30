@@ -19,6 +19,8 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set<GameMessageType>([
   'REQUEST_REWARDED_AD',
   'SAVE_GAME',
   'LOAD_GAME',
+  'OWN_EXIT_BUTTON',
+  'EXIT_REQUEST',
 ])
 
 function isGameMessage(data: unknown): data is GameMessage & { source: string } {

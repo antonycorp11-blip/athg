@@ -24,7 +24,9 @@ const initMessage = (game: string, locale: string): PortalMessage => ({
  * Retorna `onFrameLoad` para ser chamado no onLoad do iframe.
  * `frameKey` muda quando o iframe é recriado (retry), religando a bridge.
  */
-export function useGameBridge(iframeRef: RefObject<HTMLIFrameElement | null>, slug: string, gameUrl: string, frameKey: number) {
+export interface BridgeEvents { onOwnExit?: () => void; onExit?: () => void }
+
+export function useGameBridge(iframeRef: RefObject<HTMLIFrameElement | null>, slug: string, gameUrl: string, frameKey: number, events: BridgeEvents = {}) {
   const bridgeRef = useRef<GameBridge | null>(null)
   const { toast } = useToast()
   const { t, locale } = useTranslation()
@@ -32,6 +34,8 @@ export function useGameBridge(iframeRef: RefObject<HTMLIFrameElement | null>, sl
   // Mantém as dependências de UI atualizadas sem recriar a bridge.
   const ui = useRef({ toast, t, locale })
   ui.current = { toast, t, locale }
+  const ev = useRef(events)
+  ev.current = events
 
   useEffect(() => {
     const iframe = iframeRef.current
@@ -59,6 +63,8 @@ export function useGameBridge(iframeRef: RefObject<HTMLIFrameElement | null>, sl
         const result = await saveService.save(slug, m.payload.data, m.payload.slot)
         bridge.send({ type: 'SAVE_RESULT', requestId: m.requestId, payload: result })
       },
+      OWN_EXIT_BUTTON: () => ev.current.onOwnExit?.(),
+      EXIT_REQUEST: () => ev.current.onExit?.(),
       LOAD_GAME: async (m) => {
         const data = await saveService.load(slug, m.payload?.slot)
         bridge.send({ type: 'LOAD_RESULT', requestId: m.requestId, payload: { data } })

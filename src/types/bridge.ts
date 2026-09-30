@@ -16,6 +16,8 @@ export type GameMessage =
   | { type: 'REQUEST_REWARDED_AD'; requestId: string }
   | { type: 'SAVE_GAME'; requestId?: string; payload: { data: unknown; slot?: string } }
   | { type: 'LOAD_GAME'; requestId: string; payload?: { slot?: string } }
+  | { type: 'OWN_EXIT_BUTTON' } // o jogo tem o próprio botão de sair: o portal esconde o X
+  | { type: 'EXIT_REQUEST' } // o jogador pediu para sair pelo menu do jogo
 
 /** Mensagens enviadas pelo PORTAL para o jogo. */
 export type PortalMessage =
