@@ -235,7 +235,7 @@ export const games: Game[] = [
       'Toque para colocar um palito. Arraste para subir e descer pela torre.',
       'Toque nas ameaças para expulsá-las e nas peças danificadas para repará-las.',
       'Abra a árvore de melhorias para produzir mais rápido e automatizar a construção.',
-      'No PC: Espaço coloca, T abre a árvore e M liga/desliga o som. O progresso fica salvo neste aparelho.',
+      'No PC: Espaço coloca, T abre a árvore e M liga/desliga o som. O jogo salva sozinho na sua conta: continue de qualquer aparelho.',
     ],
     screenshots: [],
     theme: { primary: '#FFEC27', secondary: '#1D2B53', motif: 'growth' },
