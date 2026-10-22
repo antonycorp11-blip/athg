@@ -6,6 +6,8 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -17,6 +19,7 @@ import android.widget.FrameLayout;
 
 /** Hospeda os jogos ATHG em tela imersiva para a captura não incluir barras do sistema. */
 public final class GameActivity extends Activity {
+    static final String EXTRA_CAPTURE = "capture_intent";
     private static final String SITE = "https://athg.antonycorp11.workers.dev";
     private WebView web;
     private FrameLayout root;
@@ -54,6 +57,27 @@ public final class GameActivity extends Activity {
         setContentView(root);
         web.loadUrl(SITE + "/games");
         immersive();
+        startCaptureAfterImmersive(getIntent());
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        immersive();
+        startCaptureAfterImmersive(intent);
+    }
+
+    private void startCaptureAfterImmersive(Intent source) {
+        Intent capture = Build.VERSION.SDK_INT >= 33
+                ? source.getParcelableExtra(EXTRA_CAPTURE, Intent.class)
+                : source.getParcelableExtra(EXTRA_CAPTURE);
+        if (capture == null) return;
+        source.removeExtra(EXTRA_CAPTURE);
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(capture);
+            else startService(capture);
+        }, 350);
     }
 
     private void immersive() {

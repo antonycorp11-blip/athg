@@ -160,9 +160,15 @@ public final class MainActivity extends Activity {
         int selected = quality.getSelectedItemPosition();
         i.putExtra(CaptureService.EXTRA_QUALITY, selected);
         getPreferences(MODE_PRIVATE).edit().putInt("quality", selected).putBoolean("open_game", openGame.isChecked()).apply();
-        if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
-        if (openGame.isChecked()) startActivity(new Intent(this, GameActivity.class));
-        else toast("Gravação iniciando. Abra o jogo.");
+        if (openGame.isChecked()) {
+            Intent game = new Intent(this, GameActivity.class);
+            game.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            game.putExtra(GameActivity.EXTRA_CAPTURE, i);
+            startActivity(game);
+        } else {
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
+            toast("Gravação iniciando. Abra o jogo.");
+        }
     }
 
     private void makeQr(String content) {
