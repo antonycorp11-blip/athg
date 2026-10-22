@@ -772,6 +772,12 @@ function Studio({ game }: { game: Game | null }) {
           </button>
 
           <div className="ml-auto flex min-w-0 items-center gap-3">
+            {capture && monitorState !== 'on' && !notice && (
+              <button type="button" onClick={() => openMonitor()} className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-gold hover:text-fg">
+                <Headphones size={14} className="shrink-0" aria-hidden />
+                <span className="truncate">{monitorState === 'blocked' ? t('studio.monitorBlockedShort') : t('studio.monitorClosed')}</span>
+              </button>
+            )}
             {notice && (
               <p className={cn('flex min-w-0 items-center gap-1.5 text-xs', notice.tone === 'warn' ? 'text-gold' : 'text-success')}>
                 {notice.tone === 'warn' ? <TriangleAlert size={14} className="shrink-0" aria-hidden /> : <CircleCheck size={14} className="shrink-0" aria-hidden />}

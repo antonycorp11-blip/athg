@@ -28,11 +28,15 @@ export function captureSupported() {
 /** Controles podem ficar por cima do palco sem aparecer na gravação. */
 export const overlaysHidden = () => typeof window.RestrictionTarget?.fromElement === 'function'
 
-/** Pede a captura desta aba (com o som do jogo) e limita ao elemento do palco. */
+/**
+ * Pede a captura desta aba (com o som do jogo) e limita ao elemento do palco.
+ * O som da aba para de tocar direto: o jogo passa a ser ouvido pelo retorno do mixer,
+ * já com o volume que vai para o vídeo (o que você ouve é o que é gravado).
+ */
 export async function captureStage(stage: HTMLElement, fps: number): Promise<MediaStream> {
   const stream = await navigator.mediaDevices.getDisplayMedia({
     video: { frameRate: { ideal: fps, max: fps } },
-    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false },
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: true },
     preferCurrentTab: true,
     selfBrowserSurface: 'include',
     surfaceSwitching: 'exclude',
@@ -48,6 +52,20 @@ export async function captureStage(stage: HTMLElement, fps: number): Promise<Med
     throw new Error('not-this-tab')
   }
   track.contentHint = 'motion'
+  // O Chrome só corta o som direto da aba quando a trilha de áudio da captura tem um
+  // consumidor "de verdade": um gravador mudo (descartado) liga isso já na captura,
+  // senão o jogo tocaria em dobro (direto + retorno) até a primeira gravação.
+  const [audio] = stream.getAudioTracks()
+  if (audio) {
+    try {
+      const keep = new MediaRecorder(new MediaStream([audio]))
+      keep.ondataavailable = () => {}
+      keep.start(30_000)
+      audio.addEventListener('ended', () => keep.state !== 'inactive' && keep.stop())
+    } catch {
+      /* segue sem */
+    }
+  }
   return stream
 }
 

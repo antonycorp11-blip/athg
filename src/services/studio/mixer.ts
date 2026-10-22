@@ -1,9 +1,9 @@
 // Mixer do Modo Gravação: som do jogo (capturado da aba) + voz ao vivo do iPhone.
 // - Gravação: o vídeo leva só o som do jogo (com o volume do mixer); a voz vai crua para
 //   um WAV separado (ver wav.ts), para tratar o ruído no editor.
-// - O jogo continua tocando direto na aba (sem atraso para quem joga).
-// - Retorno: a voz do iPhone toca numa janelinha separada. O som de outra janela não
-//   entra na captura da aba, então a voz não vaza para a trilha do jogo.
+// - Retorno: jogo + voz, cada um com o volume do mixer, tocam numa janelinha separada
+//   (o som direto da aba é cortado na captura). O som de outra janela não entra na
+//   captura da aba, então não há eco nem voz vazando para a trilha do jogo.
 
 export type MixChannel = 'game' | 'voice'
 
@@ -47,6 +47,7 @@ export class StudioMixer {
     }
     this.channels = { game: make(), voice: make() }
     this.channels.game.gain.connect(this.recordDest)
+    this.channels.game.gain.connect(this.monitorGain)
     this.channels.voice.gain.connect(this.monitorGain)
   }
 
