@@ -181,6 +181,8 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
   private var vIn: AVAssetWriterInput?
   private var aIn: AVAssetWriterInput?
   private var firstPTS: CMTime = .invalid
+  private var lastVideoPTS: CMTime = .invalid
+  private var lastVideoImage: CVPixelBuffer?
   private let q = DispatchQueue(label: "rec")
   private(set) var url: URL?
   private var peak: Float = 0
@@ -198,7 +200,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     return size
   }
 
-  /** Liga a captura (sem gravar): o Gravar começa na hora e os medidores já funcionam. */
+  /** Liga a captura de tela e áudio para testar o acesso ou iniciar a gravação. */
   func arm(excluding windowIDs: [CGWindowID], width: Int, height: Int, crop: Bool) async throws {
     try? await stream?.stopCapture()
     stream = nil
@@ -234,6 +236,11 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     stream = s
   }
 
+  func disarm() async {
+    try? await stream?.stopCapture()
+    stream = nil
+  }
+
   func start(url: URL, width: Int, height: Int) throws {
     let w = try AVAssetWriter(outputURL: url, fileType: .mp4)
     // Fragmentos a cada 10 s: se algo travar no meio, o que já foi gravado continua tocando.
@@ -263,6 +270,8 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
       vIn = v
       aIn = a
       firstPTS = .invalid
+      lastVideoPTS = .invalid
+      lastVideoImage = nil
       self.url = url
     }
   }
@@ -276,7 +285,9 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
       guard
         let attachments = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
         let raw = attachments.first?[.status] as? Int,
-        SCFrameStatus(rawValue: raw) == .complete
+        let status = SCFrameStatus(rawValue: raw),
+        (status == .complete || status == .started),
+        let image = CMSampleBufferGetImageBuffer(sb)
       else { return }
       if !firstPTS.isValid {
         firstPTS = pts
@@ -286,7 +297,10 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         let startMs = nowMs() - age * 1000
         DispatchQueue.main.async { self.onFirstFrame?(startMs) }
       }
-      if vIn?.isReadyForMoreMediaData == true { vIn?.append(sb) }
+      if vIn?.isReadyForMoreMediaData == true, vIn?.append(sb) == true {
+        lastVideoPTS = pts
+        lastVideoImage = image
+      }
     case .audio:
       applyGainAndMeasure(sb)
       guard let writer, writer.status == .writing, firstPTS.isValid, pts >= firstPTS, aIn?.isReadyForMoreMediaData == true else { return }
@@ -328,18 +342,32 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
   /** Para de gravar (a captura continua ligada). Devolve o arquivo e a duração exata. */
   func stop() async -> (URL?, Double) {
     let end = CMClockGetTime(CMClockGetHostTimeClock())
-    let (w, v, a, first, url): (AVAssetWriter?, AVAssetWriterInput?, AVAssetWriterInput?, CMTime, URL?) = q.sync {
-      let r = (writer, vIn, aIn, firstPTS, self.url)
+    let (w, v, a, first, last, image, url): (AVAssetWriter?, AVAssetWriterInput?, AVAssetWriterInput?, CMTime, CMTime, CVPixelBuffer?, URL?) = q.sync {
+      let r = (writer, vIn, aIn, firstPTS, lastVideoPTS, lastVideoImage, self.url)
       writer = nil
       vIn = nil
       aIn = nil
       firstPTS = .invalid
+      lastVideoPTS = .invalid
+      lastVideoImage = nil
       return r
     }
     guard let w else { return (nil, 0) }
     guard first.isValid else {
       w.cancelWriting()
       return (nil, 0)
+    }
+    // O ScreenCaptureKit não manda novos pixels quando a tela está parada.
+    // Repetir o último quadro no fim mantém o vídeo até o mesmo instante do áudio.
+    if let image, last.isValid, end - last > CMTime(value: 2, timescale: 30), v?.isReadyForMoreMediaData == true {
+      var format: CMVideoFormatDescription?
+      if CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault, imageBuffer: image, formatDescriptionOut: &format) == noErr,
+         let format {
+        var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: 30), presentationTimeStamp: end - CMTime(value: 1, timescale: 30), decodeTimeStamp: .invalid)
+        var sample: CMSampleBuffer?
+        if CMSampleBufferCreateReadyWithImageBuffer(allocator: kCFAllocatorDefault, imageBuffer: image, formatDescription: format, sampleTiming: &timing, sampleBufferOut: &sample) == noErr,
+           let sample { _ = v?.append(sample) }
+      }
     }
     v?.markAsFinished()
     a?.markAsFinished()
@@ -374,6 +402,7 @@ final class Studio: NSObject, ObservableObject, WKScriptMessageHandler {
   @Published var hd = true { didSet { defaults.set(hd, forKey: "hd"); rearm() } }
   @Published var crop = false { didSet { defaults.set(crop, forKey: "crop"); rearm() } }
   @Published var recording = false
+  @Published var preparing = false
   @Published var seconds: Double = 0
   @Published var sizeText = ""
   @Published var gameLevel: Float = 0
@@ -436,12 +465,13 @@ final class Studio: NSObject, ObservableObject, WKScriptMessageHandler {
 
   func rearm() {
     // Sem confiar só no CGPreflight (ele erra com apps assinados localmente): tenta capturar.
-    guard panel != nil, !recording else { return }
+    guard panel != nil, !recording, !preparing else { return }
     let (w, h) = outputSize
     let hidden = [CGWindowID(panel.windowNumber)]
     Task { @MainActor in
       do {
         try await recorder.arm(excluding: hidden, width: w, height: h, crop: crop)
+        await recorder.disarm()
         armed = true
         message = "Pronto: \(w)×\(h), chip de vídeo."
       } catch {
@@ -455,34 +485,45 @@ final class Studio: NSObject, ObservableObject, WKScriptMessageHandler {
   func toggleRec() { recording ? stopRec() : startRec() }
 
   func startRec() {
-    guard armed, !recording else {
+    guard armed, !recording, !preparing else {
       if !armed { rearm() }
       return
     }
-    let base = takeName()
-    let video = outputFolder.appendingPathComponent("\(base) - video.mp4")
-    let wav = outputFolder.appendingPathComponent("\(base) - voz.wav")
+    preparing = true
     let (w, h) = outputSize
-    do {
-      take = (video, wav)
-      try recorder.start(url: video, width: w, height: h)
-      recording = true
-      seconds = 0
-      sizeText = ""
-      message = "Gravando \(w)×\(h)…"
-      syncFace()
-    } catch {
-      take = nil
-      message = "Não deu para gravar: \(error.localizedDescription)"
+    let hidden = [CGWindowID(panel.windowNumber)]
+    Task { @MainActor in
+      defer { preparing = false }
+      do {
+        let base = takeName()
+        let video = outputFolder.appendingPathComponent("\(base) - video.mp4")
+        let wav = outputFolder.appendingPathComponent("\(base) - voz.wav")
+        take = (video, wav)
+        try recorder.start(url: video, width: w, height: h)
+        try await recorder.arm(excluding: hidden, width: w, height: h, crop: crop)
+        recording = true
+        seconds = 0
+        sizeText = ""
+        message = "Gravando \(w)×\(h)…"
+        syncFace()
+      } catch {
+        if recorder.recording { _ = await recorder.stop() }
+        await recorder.disarm()
+        take = nil
+        message = "Não deu para gravar: \(error.localizedDescription)"
+      }
     }
   }
 
   func stopRec() {
     guard recording else { return }
     recording = false
+    preparing = true
     syncFace()
     Task { @MainActor in
       let (url, secs) = await recorder.stop()
+      await recorder.disarm()
+      preparing = false
       voice.finish(seconds: secs) { [weak self] _ in
         DispatchQueue.main.async {
           self?.message = url.map { "Salvo em Filmes › ATHG Gravações: \($0.lastPathComponent)" } ?? "Nada foi gravado."
@@ -718,7 +759,7 @@ struct PanelView: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(s.recording ? .gray : .red)
-        .disabled(!s.armed && !s.recording)
+        .disabled(s.preparing || (!s.armed && !s.recording))
         if s.recording { Text(s.sizeText).font(.caption).foregroundColor(.secondary) }
         Spacer()
         Button("Pasta") { NSWorkspace.shared.open(outputFolder) }.controlSize(.small)
