@@ -51,6 +51,8 @@ export class VoiceTap {
   private until = Infinity
   private bytes = 0
   private finish: (() => void) | null = null
+  /** Recebe todos os pedaços (frame do AudioContext + amostras), gravando ou não: o ATHG Gravador usa. */
+  onPcm: ((frame: number, data: Float32Array) => void) | null = null
 
   private constructor(private ctx: AudioContext, source: AudioNode) {
     this.node = new AudioWorkletNode(ctx, 'athg-pcm-tap', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] })
@@ -115,7 +117,13 @@ export class VoiceTap {
     return this.file?.written ?? 0
   }
 
+  /** Frame atual do relógio de áudio (para alinhar a voz com o vídeo do app nativo). */
+  get frame() {
+    return this.now()
+  }
+
   private onChunk(frame: number, data: Float32Array) {
+    this.onPcm?.(frame, data)
     const file = this.file
     if (!file) return
     const a = Math.max(this.from, frame)
