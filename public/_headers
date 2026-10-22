@@ -9,3 +9,8 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# Câmera do Modo Gravação: precisa de câmera e microfone (o resto do site continua sem).
+/cam/*
+  ! Permissions-Policy
+  Permissions-Policy: camera=(self), microphone=(self), geolocation=()
