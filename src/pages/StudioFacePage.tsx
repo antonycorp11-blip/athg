@@ -27,18 +27,28 @@ type ToNative =
   | { type: 'link'; status: string; camera: boolean }
   | { type: 'ctl'; msg: CamToStudio }
   | { type: 'pcm'; end: number; data: string }
+  /** Voz crua do iPhone (sem a compressão da chamada): é a que deve ir para o voz.wav. */
+  | { type: 'pcm-hq'; end: number; frame: number; rate: number; data: string }
   | { type: 'drag'; dx: number; dy: number }
   | { type: 'resize'; dy: number }
 
 declare global {
   interface Window {
     webkit?: { messageHandlers?: { athg?: { postMessage(m: ToNative): void } } }
+    athgAndroid?: { postMessage(json: string): void }
     athgFace?: { set(patch: Partial<View>): void; noise(on: boolean): void }
   }
 }
 
 const post = (m: ToNative) => {
-  window.webkit?.messageHandlers?.athg?.postMessage(m)
+  if (window.webkit?.messageHandlers?.athg) window.webkit.messageHandlers.athg.postMessage(m)
+  else window.athgAndroid?.postMessage(JSON.stringify(m))
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let s = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(s)
 }
 /** Erros vão para o registro do app (log.txt), que já anota as mudanças de estado do iPhone. */
 const report = (where: string, e: unknown) => post({ type: 'link', status: `erro ${where}: ${e instanceof Error ? `${e.name} ${e.message}` : String(e)}`, camera: false })
@@ -70,7 +80,13 @@ export default function StudioFacePage() {
   useSeo({ title: 'ATHG Gravador', description: 'ATHG Gravador', path: '/', noindex: true })
   const [view, setView] = useState<View>({ scene: 'game-face', shape: 'wide', mirror: true, rotate: 0, recording: false, startedAt: null })
   const videoRef = useRef<HTMLVideoElement>(null)
-  const link = useStudioLink({ onCtl: (msg) => post({ type: 'ctl', msg }) })
+  const link = useStudioLink({
+    onCtl: (msg) => post({ type: 'ctl', msg }),
+    onPcm: (packet) => {
+      const view = new DataView(packet)
+      post({ type: 'pcm-hq', end: Date.now(), frame: view.getFloat64(0, true), rate: view.getUint32(8, true), data: bytesToBase64(new Uint8Array(packet, 12)) })
+    },
+  })
   const { room, status, camStream, sendCtl } = link
 
   useEffect(() => {

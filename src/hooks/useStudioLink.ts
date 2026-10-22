@@ -8,6 +8,8 @@ export type LinkStatus = 'starting' | 'waiting' | 'connecting' | 'connected' | '
 
 interface Handlers {
   onCtl: (m: CamToStudio) => void
+  /** Voz crua do microfone do iPhone (canal "pcm"): [Float64 frame][Uint32 taxa][PCM Int16]. */
+  onPcm?: (packet: ArrayBuffer) => void
 }
 
 const ROOM_KEY = 'studio-room'
@@ -65,6 +67,11 @@ export function useStudioLink(handlers: Handlers) {
         }
       }
       peer.ondatachannel = ({ channel }) => {
+        if (channel.label === 'pcm') {
+          channel.binaryType = 'arraybuffer'
+          channel.onmessage = (e) => e.data instanceof ArrayBuffer && h.current.onPcm?.(e.data)
+          return
+        }
         if (channel.label !== 'ctl') return
         ctlRef.current = channel
         channel.onmessage = (e) => h.current.onCtl(JSON.parse(e.data as string) as CamToStudio)

@@ -7,6 +7,7 @@ import { ICE_SERVERS, joinSignaling, type Signaling } from '@/services/studio/si
 import { storage } from '@/services/storage'
 import { preferH264 } from '@/services/studio/sdp'
 import { rotatedVideoStyle } from '@/services/studio/video'
+import { VoiceTap } from '@/services/studio/wav'
 import { STUDIO_SCENES, type CamRotation, type CamToStudio, type SignalMessage, type StudioToCam } from '@/types/studio'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/utils/cn'
@@ -68,6 +69,8 @@ export default function StudioCamPage() {
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const ctlRef = useRef<RTCDataChannel | null>(null)
   const stopMeterRef = useRef<() => void>(() => {})
+  const pcmRef = useRef<RTCDataChannel | null>(null)
+  const stopMicRef = useRef<() => void>(() => {})
   const sigRef = useRef<Signaling | null>(null)
 
   const [status, setStatus] = useState<CamStatus>('idle')
@@ -102,6 +105,8 @@ export default function StudioCamPage() {
         stream.addTrack(track)
         stopMeterRef.current()
         stopMeterRef.current = startMeter(stream, meterRef)
+        stopMicRef.current()
+        stopMicRef.current = startMicPcm(stream, pcmRef)
       } catch {
         /* mantém o microfone atual */
       }
@@ -120,6 +125,12 @@ export default function StudioCamPage() {
     pcRef.current = pc
     const ctl = pc.createDataChannel('ctl')
     ctlRef.current = ctl
+    // Voz em qualidade cheia: o microfone cru vai por um canal sem perdas (sem a compressão
+    // da chamada). É ela que o computador/tablet grava no voz.wav; o áudio da chamada fica
+    // só para o retorno no fone.
+    const pcm = pc.createDataChannel('pcm', { ordered: true })
+    pcm.binaryType = 'arraybuffer'
+    pcmRef.current = pcm
     ctl.onopen = () => ctl.send(JSON.stringify({ t: 'cam-info', noise: noiseRef.current } satisfies CamToStudio))
     ctl.onmessage = (e) => {
       const m = JSON.parse(e.data as string) as StudioToCam
@@ -162,6 +173,7 @@ export default function StudioCamPage() {
       streamRef.current = stream
       if (videoRef.current) videoRef.current.srcObject = stream
       stopMeterRef.current = startMeter(stream, meterRef)
+      stopMicRef.current = startMicPcm(stream, pcmRef)
       void requestWakeLock()
       let pending: RTCIceCandidateInit[] = []
       const onMessage = (m: SignalMessage) => {
@@ -222,6 +234,7 @@ export default function StudioCamPage() {
   useEffect(
     () => () => {
       stopMeterRef.current()
+      stopMicRef.current()
       pcRef.current?.close()
       sigRef.current?.close()
       streamRef.current?.getTracks().forEach((tr) => tr.stop())
@@ -353,6 +366,44 @@ export default function StudioCamPage() {
       </div>
     </div>
   )
+}
+
+/** Manda o microfone cru (PCM 16 bits) pelo canal "pcm" em pedaços de ~85 ms. */
+function startMicPcm(stream: MediaStream, dc: RefObject<RTCDataChannel | null>): () => void {
+  if (!stream.getAudioTracks().length) return () => {}
+  let ctx: AudioContext | null = null
+  let tap: VoiceTap | null = null
+  let closed = false
+  try {
+    ctx = new AudioContext({ sampleRate: 48_000 })
+    const rate = ctx.sampleRate
+    const source = ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks()))
+    void VoiceTap.create(ctx, source).then((t) => {
+      if (closed) return t.disconnect()
+      tap = t
+      t.onPcm = (frame, data) => {
+        const channel = dc.current
+        if (channel?.readyState !== 'open' || channel.bufferedAmount > 2_000_000) return
+        const buf = new ArrayBuffer(12 + data.length * 2)
+        const view = new DataView(buf)
+        view.setFloat64(0, frame, true)
+        view.setUint32(8, rate, true)
+        const pcm = new Int16Array(buf, 12)
+        for (let i = 0; i < data.length; i++) {
+          const v = Math.max(-1, Math.min(1, data[i]))
+          pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff
+        }
+        channel.send(buf)
+      }
+    })
+  } catch {
+    /* sem voz em qualidade cheia: o computador usa o áudio da chamada */
+  }
+  return () => {
+    closed = true
+    tap?.disconnect()
+    void ctx?.close()
+  }
 }
 
 /** Barra de nível do microfone (confirma que a voz está chegando). */
