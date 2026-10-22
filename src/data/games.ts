@@ -248,6 +248,8 @@ export const games: Game[] = [
     shortDescription: 'Incremental de fábrica em pixel art: ferva o mar, fabrique nuvens e faça chover sementes até a floresta despertar.',
     description:
       'Um Véu de cinzas cobriu o céu: sem sol, o mar não evapora e não chove. Ferva água do mar, fabrique nuvens, semeie cada uma delas e faça chover sementes sobre a terra seca até uma floresta inteira crescer em volta da Semente-Mãe. Quando a floresta respira, ela se levanta: é um Ancião. Leve-o à forma final para rasgar o Véu sobre aquela terra e siga a jornada por seis terras, cada uma com um capítulo da história.',
+    thumbnail: '/games/cloudworks/thumbnail.jpg',
+    banner: '/games/cloudworks/banner.jpg',
     gameUrl: 'https://cloudworks.antonycorp11.workers.dev/',
     hosting: 'external',
     categories: ['incremental', 'gerenciamento', 'casual'],
@@ -278,6 +280,8 @@ export const games: Game[] = [
     shortDescription: 'Incremental top-down de coleta, reciclagem e automação: remova 1.000.000 de unidades de lixo de um terreno gigante.',
     description:
       'Um terreno gigantesco soterrado por exatamente um milhão de unidades de lixo. Colete com as próprias mãos, venda e recicle, compre ferramentas melhores e monte esteiras, máquinas, robôs e escavadeiras que continuam trabalhando fora da tela. Explore regiões, estradas e ruínas, faça descobertas e cumpra contratos até o último pedaço de lixo sumir. Arte, animação, música e sons feitos inteiramente por código.',
+    thumbnail: '/games/garbage-kingdom/thumbnail.jpg',
+    banner: '/games/garbage-kingdom/banner.jpg',
     gameUrl: 'https://garbage.antonycorp11.workers.dev/',
     hosting: 'external',
     categories: ['incremental', 'simulacao', 'casual'],
@@ -308,6 +312,8 @@ export const games: Game[] = [
     shortDescription: 'Roguelike incremental musical em pixel art: corte os monstros desafinados e proteja o tambor do Tito.',
     description:
       'No meio do Grande Concerto, o Maestro Trítono rasgou a Partitura Primordial em cinco páginas e sequestrou a regente Clara. As notas soltas azedaram e viraram Dissonâncias, que odeiam qualquer som afinado. Antes de ser levada, Clara pôs a própria alma na batuta, e você é ela. Corte os monstros com o cursor, proteja o tambor do Tito, evolua a oficina e enfrente as cinco formas do Trítono, do Regente Mascarado ao Supremo Desafinado, num roguelike com tema de teoria musical.',
+    thumbnail: '/games/dissonancia/thumbnail.jpg',
+    banner: '/games/dissonancia/banner.jpg',
     gameUrl: 'https://landsofacordelot2.vercel.app/',
     hosting: 'external',
     categories: ['musica', 'aventura', 'incremental'],
@@ -338,6 +344,8 @@ export const games: Game[] = [
     shortDescription: 'Aventura top-down em pixel art: explore cinco biomas e 14 cidades muradas, monte seu exército e enfrente gigantes.',
     description:
       'Teren parte de Brumavale, a capital, para explorar um mundo enorme de cinco biomas e 14 cidades muradas, com fauna, inimigos, ciclo de dia e noite e clima. Troque de arma e armadura, colete recursos, recrute e comande um exército, cumpra as missões do Lorde, faça a sede do clã crescer e enfrente os tiranos de cada bioma e os gigantes de mundo, com montarias de terra e voadoras.',
+    thumbnail: '/games/vaelmor/thumbnail.jpg',
+    banner: '/games/vaelmor/banner.jpg',
     gameUrl: 'https://vaelmof.antonycorp11.workers.dev/',
     hosting: 'external',
     categories: ['aventura', 'estrategia'],
