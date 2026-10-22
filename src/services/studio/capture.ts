@@ -1,29 +1,41 @@
-// Captura da própria aba recortada no palco (Region Capture). Quem monta a cena
-// (jogo + rosto) é o compositor do navegador, na GPU: nada é redesenhado em JS.
+// Captura da própria aba limitada ao palco. Quem monta a cena (jogo + rosto) é o
+// compositor do navegador, na GPU: nada é redesenhado em JS.
+// Element Capture (restrictTo) grava só o palco e o que está dentro dele: os controles
+// por cima (tela cheia, mixer) ficam fora do vídeo. Sem ele, cai para o recorte (cropTo).
 
 declare global {
-  interface CropTargetStatic {
+  interface ElementTargetStatic {
     fromElement(el: Element): Promise<unknown>
   }
   interface Window {
-    CropTarget?: CropTargetStatic
+    CropTarget?: ElementTargetStatic
+    RestrictionTarget?: ElementTargetStatic
   }
   interface MediaStreamTrack {
     cropTo?(target: unknown): Promise<void>
+    restrictTo?(target: unknown): Promise<void>
   }
 }
 
 export function captureSupported() {
-  return typeof navigator.mediaDevices?.getDisplayMedia === 'function' && typeof window.CropTarget?.fromElement === 'function' && typeof MediaRecorder !== 'undefined'
+  return (
+    typeof navigator.mediaDevices?.getDisplayMedia === 'function' &&
+    (typeof window.RestrictionTarget?.fromElement === 'function' || typeof window.CropTarget?.fromElement === 'function') &&
+    typeof MediaRecorder !== 'undefined'
+  )
 }
 
-export type CaptureError = 'denied' | 'not-this-tab' | 'failed'
+/** Controles podem ficar por cima do palco sem aparecer na gravação. */
+export const overlaysHidden = () => typeof window.RestrictionTarget?.fromElement === 'function'
 
-/** Pede a captura desta aba (com o som do jogo) e recorta no elemento do palco. */
+/**
+ * Pede a captura desta aba (com o som do jogo) e limita ao elemento do palco.
+ * O som da aba deixa de tocar direto: quem toca é o retorno do mixer.
+ */
 export async function captureStage(stage: HTMLElement, fps: number): Promise<MediaStream> {
   const stream = await navigator.mediaDevices.getDisplayMedia({
     video: { frameRate: { ideal: fps, max: fps } },
-    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false },
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: true },
     preferCurrentTab: true,
     selfBrowserSurface: 'include',
     surfaceSwitching: 'exclude',
@@ -32,14 +44,24 @@ export async function captureStage(stage: HTMLElement, fps: number): Promise<Med
   } as DisplayMediaStreamOptions)
   const [track] = stream.getVideoTracks()
   try {
-    const target = await window.CropTarget!.fromElement(stage)
-    await track.cropTo!(target)
+    if (overlaysHidden()) await track.restrictTo!(await window.RestrictionTarget!.fromElement(stage))
+    else await track.cropTo!(await window.CropTarget!.fromElement(stage))
   } catch {
     stream.getTracks().forEach((t) => t.stop())
     throw new Error('not-this-tab')
   }
   track.contentHint = 'motion'
   return stream
+}
+
+/** Modo tela: escolhe a tela (ou janela) do Mac para mostrar no palco. */
+export async function captureScreen(fps: number): Promise<MediaStream> {
+  return navigator.mediaDevices.getDisplayMedia({
+    video: { frameRate: { ideal: fps, max: fps }, displaySurface: 'monitor' },
+    audio: false,
+    selfBrowserSurface: 'exclude',
+    monitorTypeSurfaces: 'include',
+  } as DisplayMediaStreamOptions)
 }
 
 /** Formato de gravação: MP4/H.264 (codificador de hardware do Mac) quando o navegador tem. */
@@ -56,7 +78,7 @@ export function pickVideoMime() {
 }
 
 export const QUALITY = {
-  30: { fps: 30, videoBitsPerSecond: 6_000_000 },
-  60: { fps: 60, videoBitsPerSecond: 9_000_000 },
+  30: { fps: 30, videoBitsPerSecond: 8_000_000 },
+  60: { fps: 60, videoBitsPerSecond: 12_000_000 },
 } as const
 export type StudioFps = keyof typeof QUALITY

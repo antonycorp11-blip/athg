@@ -30,25 +30,3 @@ export async function joinSignaling(room: string, onMessage: (m: SignalMessage) 
     close: () => void db.removeChannel(channel),
   }
 }
-
-/** Fatia binários grandes: o Safari limita o tamanho de cada mensagem do data channel. */
-export const DC_CHUNK = 16 * 1024
-
-/** Envia respeitando o buffer do data channel (sem estourar memória em conexões lentas). */
-export async function sendBinary(dc: RTCDataChannel, data: ArrayBuffer) {
-  for (let i = 0; i < data.byteLength; i += DC_CHUNK) {
-    while (dc.bufferedAmount > 1024 * 1024) {
-      await new Promise<void>((resolve) => {
-        dc.bufferedAmountLowThreshold = 256 * 1024
-        dc.addEventListener('bufferedamountlow', () => resolve(), { once: true })
-      })
-    }
-    if (dc.readyState !== 'open') return
-    dc.send(data.slice(i, i + DC_CHUNK))
-  }
-}
-
-/** Espera o buffer esvaziar (antes de avisar que a voz terminou). */
-export async function drain(dc: RTCDataChannel) {
-  while (dc.readyState === 'open' && dc.bufferedAmount > 0) await new Promise((r) => setTimeout(r, 50))
-}

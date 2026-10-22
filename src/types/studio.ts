@@ -1,9 +1,17 @@
 // Modo Gravação (estúdio): protocolo entre o estúdio (computador) e a câmera (iPhone).
 // Sinalização WebRTC passa por um canal Realtime do Supabase; depois de conectados,
-// os comandos vão pelo data channel "ctl" e a voz gravada no iPhone pelo canal "voice".
+// rosto e voz vão ao vivo por WebRTC e os comandos pelo data channel "ctl".
 
 export type StudioScene = 'face' | 'game-face' | 'game'
 export const STUDIO_SCENES: StudioScene[] = ['face', 'game-face', 'game']
+
+export type CamRotation = 0 | 90 | 180 | 270
+
+/** Ajuste da imagem do rosto (feito no estúdio, controlável pelo iPhone). */
+export interface CamTransform {
+  mirror: boolean
+  rotate: CamRotation
+}
 
 /** Mensagens de sinalização (broadcast no canal studio:<sala>). */
 export type SignalMessage =
@@ -15,14 +23,13 @@ export type SignalMessage =
 
 /** Estúdio → câmera (data channel "ctl"). */
 export type StudioToCam =
-  | { t: 'state'; scene: StudioScene; recording: boolean; startedAt: number | null }
-  | { t: 'rec-start' }
-  | { t: 'rec-stop' }
+  | ({ t: 'state'; scene: StudioScene; recording: boolean; startedAt: number | null; screen: boolean } & CamTransform)
+  | { t: 'set-noise'; on: boolean }
 
 /** Câmera → estúdio (data channel "ctl"). */
 export type CamToStudio =
   | { t: 'scene'; scene: StudioScene }
   | { t: 'rec-toggle' }
-  | { t: 'voice-start'; mime: string }
-  | { t: 'voice-end' }
-  | { t: 'voice-error'; message: string }
+  | { t: 'cam-transform'; mirror?: boolean; rotate?: CamRotation }
+  /** Redução de ruído do iPhone (processamento de voz do sistema) ligada/desligada. */
+  | { t: 'cam-info'; noise: boolean }

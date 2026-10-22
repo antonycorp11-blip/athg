@@ -59,6 +59,9 @@ export interface DiskFile {
   name: string
   readonly written: number
   write(chunk: Blob | ArrayBuffer): void
+  /** Reescreve bytes numa posição (ex.: cabeçalho do WAV). Use só antes de close(). */
+  writeAt(position: number, data: ArrayBuffer): void
+  truncate(size: number): void
   close(): Promise<void>
 }
 
@@ -81,10 +84,44 @@ export async function createDiskFile(dir: FileSystemDirectoryHandle, name: strin
         () => void (failed = true),
       )
     },
+    writeAt(position, data) {
+      if (failed) return
+      queue = queue.then(() => stream.write({ type: 'write', position, data })).catch(() => void (failed = true))
+    },
+    truncate(size) {
+      if (failed) return
+      queue = queue.then(() => stream.write({ type: 'truncate', size })).catch(() => void (failed = true))
+    },
     async close() {
       await queue
       await stream.close().catch(() => {})
     },
+  }
+}
+
+/** Duração (s) de um vídeo já salvo na pasta; null se não der para ler. */
+export async function fileDuration(dir: FileSystemDirectoryHandle, name: string): Promise<number | null> {
+  try {
+    const file = await (await dir.getFileHandle(name)).getFile()
+    const url = URL.createObjectURL(file)
+    const v = document.createElement('video')
+    v.muted = true
+    v.preload = 'metadata'
+    v.src = url
+    const duration = await new Promise<number | null>((resolve) => {
+      const timer = setTimeout(() => resolve(null), 15_000)
+      v.onloadedmetadata = () => {
+        if (Number.isFinite(v.duration)) return clearTimeout(timer), resolve(v.duration)
+        // Alguns MP4 fragmentados só revelam a duração depois de buscar o fim.
+        v.ondurationchange = () => Number.isFinite(v.duration) && (clearTimeout(timer), resolve(v.duration))
+        v.currentTime = 1e9
+      }
+      v.onerror = () => (clearTimeout(timer), resolve(null))
+    })
+    URL.revokeObjectURL(url)
+    return duration
+  } catch {
+    return null
   }
 }
 

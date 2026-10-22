@@ -1,22 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ICE_SERVERS, joinSignaling, newRoomId, type Signaling } from '@/services/studio/signaling'
+import { tuneAnswer } from '@/services/studio/sdp'
+import { storage } from '@/services/storage'
 import type { CamToStudio, SignalMessage, StudioToCam } from '@/types/studio'
 
 export type LinkStatus = 'starting' | 'waiting' | 'connecting' | 'connected' | 'error'
 
-export type VoiceEvent = { kind: 'start'; mime: string } | { kind: 'data'; data: ArrayBuffer } | { kind: 'end' } | { kind: 'lost' }
-
 interface Handlers {
   onCtl: (m: CamToStudio) => void
-  onVoice: (e: VoiceEvent) => void
+}
+
+const ROOM_KEY = 'studio-room'
+
+/** Sala fixa deste navegador: o iPhone continua conectado ao trocar de jogo ou recarregar. */
+function stableRoom() {
+  const saved = storage.get<string>(ROOM_KEY, '')
+  if (/^[0-9a-f]{24}$/.test(saved)) return saved
+  const room = newRoomId()
+  storage.set(ROOM_KEY, room)
+  return room
 }
 
 /**
  * Lado do estúdio da ligação com o iPhone: abre a sala (QR code), responde à oferta
- * WebRTC da câmera e expõe o vídeo do rosto + os canais de controle e de voz.
+ * WebRTC da câmera e expõe o rosto + a voz ao vivo e o canal de controle.
  */
 export function useStudioLink(handlers: Handlers) {
-  const [room] = useState(newRoomId)
+  const [room] = useState(stableRoom)
   const [status, setStatus] = useState<LinkStatus>('starting')
   const [camStream, setCamStream] = useState<MediaStream | null>(null)
   const ctlRef = useRef<RTCDataChannel | null>(null)
@@ -42,7 +52,8 @@ export function useStudioLink(handlers: Handlers) {
       const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS })
       pc = peer
       peer.onicecandidate = (e) => e.candidate && signaling?.send({ type: 'ice', from: 'studio', candidate: e.candidate.toJSON() })
-      peer.ontrack = (e) => setCamStream(e.streams[0] ?? new MediaStream([e.track]))
+      // Um stream novo a cada faixa (vídeo e voz chegam separadas): quem usa percebe a mudança.
+      peer.ontrack = (e) => setCamStream(new MediaStream(e.streams[0]?.getTracks() ?? [e.track]))
       peer.onconnectionstatechange = () => {
         if (pc !== peer) return
         if (peer.connectionState === 'connected') setStatus('connected')
@@ -51,30 +62,20 @@ export function useStudioLink(handlers: Handlers) {
         if (peer.connectionState === 'failed') {
           setStatus('waiting')
           setCamStream(null)
-          h.current.onVoice({ kind: 'lost' })
         }
       }
       peer.ondatachannel = ({ channel }) => {
-        channel.binaryType = 'arraybuffer'
-        if (channel.label === 'ctl') {
-          ctlRef.current = channel
-          channel.onmessage = (e) => h.current.onCtl(JSON.parse(e.data as string) as CamToStudio)
-        } else if (channel.label === 'voice') {
-          channel.onmessage = (e) => {
-            if (typeof e.data === 'string') {
-              const m = JSON.parse(e.data) as CamToStudio
-              if (m.t === 'voice-start') h.current.onVoice({ kind: 'start', mime: m.mime })
-              if (m.t === 'voice-end') h.current.onVoice({ kind: 'end' })
-            } else h.current.onVoice({ kind: 'data', data: e.data as ArrayBuffer })
-          }
-        }
+        if (channel.label !== 'ctl') return
+        ctlRef.current = channel
+        channel.onmessage = (e) => h.current.onCtl(JSON.parse(e.data as string) as CamToStudio)
       }
       await peer.setRemoteDescription({ type: 'offer', sdp })
       for (const c of pendingIce) await peer.addIceCandidate(c).catch(() => {})
       pendingIce = []
       const answer = await peer.createAnswer()
-      await peer.setLocalDescription(answer)
-      signaling?.send({ type: 'answer', sdp: answer.sdp ?? '' })
+      const tuned = tuneAnswer(answer.sdp ?? '')
+      await peer.setLocalDescription({ type: 'answer', sdp: tuned })
+      signaling?.send({ type: 'answer', sdp: tuned })
     }
 
     const onMessage = (m: SignalMessage) => {

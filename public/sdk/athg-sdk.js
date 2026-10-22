@@ -77,6 +77,18 @@
     }
   })
 
+  // Modo Gravação: com o foco no jogo, ⌘1/⌘2/⌘3 (Ctrl no Windows) trocam a cena do estúdio.
+  // Só liga quando o estúdio avisa (ATHG_STUDIO_ON); no player normal o atalho segue do navegador.
+  var studio = false
+  global.addEventListener('message', function (event) {
+    if (event.source === global.parent && event.data && event.data.type === 'ATHG_STUDIO_ON') studio = true
+  })
+  global.addEventListener('keydown', function (e) {
+    if (!studio || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || ['1', '2', '3'].indexOf(e.key) < 0) return
+    e.preventDefault()
+    global.parent.postMessage({ type: 'ATHG_STUDIO_KEY', key: e.key }, '*')
+  }, true)
+
   function localKey(slot) { return 'athg-sdk-save:' + location.pathname + ':' + (slot || 'default') }
 
   var ATHG = {
