@@ -3,7 +3,7 @@
 // esconder a página não é a segurança; o banco é.
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { Users, UserPlus, Activity, Clock, Gamepad2, Timer, Flag, RefreshCw, Search, ShieldAlert, LogIn, Smartphone, Repeat } from 'lucide-react'
+import { Users, UserPlus, Activity, Clock, Gamepad2, Timer, Flag, RefreshCw, Search, ShieldAlert, LogIn, Smartphone, Repeat, Download, Video } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
 import { useAsync } from '@/hooks/useAsync'
 import { useSeo } from '@/hooks/useSeo'
@@ -142,6 +142,8 @@ function Dashboard({ db, refresh, onRefresh }: { db: Db; refresh: number; onRefr
           Atualizar
         </Button>
       </header>
+
+      <RecorderDownload db={db} />
 
       {/* KPIs */}
       <section aria-label="Resumo" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -402,3 +404,48 @@ function ReportsList({ db, reports, onChanged }: { db: Db; reports: { id: number
     </section>
   )
 }
+
+type RecorderInfo = { version: string; notes: string; size: number; updatedAt: string }
+
+/** APK do ATHG Gravador (Android): fica num bucket privado do Supabase, só admins baixam. */
+function RecorderDownload({ db }: { db: Db }) {
+  const info = useAsync(async () => {
+    const { data, error } = await db.storage.from('gravador').download('android/latest.json')
+    if (error || !data) return null
+    return JSON.parse(await data.text()) as RecorderInfo
+  }, [db])
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const meta = info.status === 'success' ? info.data : null
+
+  const download = async () => {
+    setBusy(true)
+    setFailed(false)
+    const name = `ATHG-Gravador-${meta?.version || 'android'}.apk`
+    const { data, error } = await db.storage.from('gravador').createSignedUrl('android/ATHG-Gravador.apk', 600, { download: name })
+    setBusy(false)
+    if (error || !data?.signedUrl) return setFailed(true)
+    window.location.href = data.signedUrl
+  }
+
+  return (
+    <section aria-labelledby="recorder" className="rounded-card border border-line bg-card p-4 sm:p-5">
+      <SectionHeader id="recorder" title="ATHG Gravador (Android)" subtitle="Grava a tela e o som do jogo no tablet, com a câmera e a voz do iPhone." icon={Video} />
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button icon={Download} onClick={() => void download()} disabled={!meta || busy}>
+          {busy ? 'Gerando link…' : 'Baixar APK do gravador'}
+        </Button>
+        <p className="text-sm text-muted">
+          {info.status === 'loading'
+            ? 'Verificando a versão…'
+            : meta
+              ? `Versão ${meta.version} · ${(meta.size / 1_048_576).toFixed(1).replace('.', ',')} MB · atualizado em ${dateTimeBR(meta.updatedAt)}`
+              : 'Nenhuma versão publicada ainda.'}
+        </p>
+      </div>
+      {meta?.notes && <p className="mt-2 max-w-3xl whitespace-pre-line text-sm text-subtle">{meta.notes}</p>}
+      {failed && <p className="mt-2 text-sm text-danger">Não deu para gerar o link de download. Tente de novo.</p>}
+    </section>
+  )
+}
+
