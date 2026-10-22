@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useRouteError } from 'react-router'
 import { Smartphone } from 'lucide-react'
 import { useStudioLink } from '@/hooks/useStudioLink'
 import { useSeo } from '@/hooks/useSeo'
@@ -37,6 +38,19 @@ declare global {
 }
 
 const post = (m: ToNative) => window.webkit?.messageHandlers?.athg?.postMessage(m)
+/** Erros vão para o registro do app (log.txt), que já anota as mudanças de estado do iPhone. */
+const report = (where: string, e: unknown) => post({ type: 'link', status: `erro ${where}: ${e instanceof Error ? `${e.name} ${e.message}` : String(e)}`, camera: false })
+
+/** Se a página quebrar dentro do app, avisa o registro e tenta de novo sozinha. */
+export function FaceRouteError() {
+  const error = useRouteError()
+  useEffect(() => {
+    report('página', error)
+    const id = setTimeout(() => window.location.reload(), 3000)
+    return () => clearTimeout(id)
+  }, [error])
+  return <div className="fixed inset-0 bg-[#0b1220]" />
+}
 
 function toBase64(data: Float32Array) {
   const pcm = new Int16Array(data.length)
@@ -81,23 +95,32 @@ export default function StudioFacePage() {
     const video = videoRef.current
     if (video) video.srcObject = camStream
     if (!camStream?.getAudioTracks().length) return
-    const ctx = new AudioContext({ sampleRate: 48_000 })
-    const input = ctx.createGain()
-    const source = ctx.createMediaStreamSource(new MediaStream(camStream.getAudioTracks()))
-    source.connect(input)
+    let ctx: AudioContext | null = null
+    let source: MediaStreamAudioSourceNode | null = null
     let tap: VoiceTap | null = null
     let closed = false
-    void ctx.resume()
-    void VoiceTap.create(ctx, input).then((t) => {
-      if (closed) return t.disconnect()
-      tap = t
-      t.onPcm = (_frame, data) => post({ type: 'pcm', end: Date.now(), data: toBase64(data) })
-    })
+    try {
+      ctx = new AudioContext({ sampleRate: 48_000 })
+      const input = ctx.createGain()
+      source = ctx.createMediaStreamSource(new MediaStream(camStream.getAudioTracks()))
+      source.connect(input)
+      void ctx.resume()
+      void VoiceTap.create(ctx, input).then(
+        (t) => {
+          if (closed) return t.disconnect()
+          tap = t
+          t.onPcm = (_frame, data) => post({ type: 'pcm', end: Date.now(), data: toBase64(data) })
+        },
+        (e) => report('voz', e),
+      )
+    } catch (e) {
+      report('voz', e)
+    }
     return () => {
       closed = true
       tap?.disconnect()
-      source.disconnect()
-      void ctx.close()
+      source?.disconnect()
+      void ctx?.close()
     }
   }, [camStream])
 

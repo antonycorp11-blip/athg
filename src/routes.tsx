@@ -41,6 +41,7 @@ const NotFoundPage = lazy(load.notFound)
 const StudioPage = lazy(load.studio)
 const StudioCamPage = lazy(load.studioCam)
 const StudioFacePage = lazy(load.studioFace)
+const FaceRouteError = lazy(() => import('@/pages/StudioFacePage').then((m) => ({ default: m.FaceRouteError })))
 
 /** Pré-carrega em segundo plano as rotas do funil principal (jogo -> player). */
 export function prefetchCoreRoutes() {
@@ -58,7 +59,7 @@ export const router = createBrowserRouter([
   { path: 'estudio/:slug', errorElement: <RouteError />, element: <Suspense fallback={null}><StudioPage /></Suspense> },
   { path: 'cam/:room', errorElement: <RouteError />, element: <Suspense fallback={null}><StudioCamPage /></Suspense> },
   // Rosto do ATHG Gravador (app do Mac): janela flutuante com a câmera do iPhone.
-  { path: 'estudio-rosto', errorElement: <RouteError />, element: <Suspense fallback={null}><StudioFacePage /></Suspense> },
+  { path: 'estudio-rosto', errorElement: <Suspense fallback={null}><FaceRouteError /></Suspense>, element: <Suspense fallback={null}><StudioFacePage /></Suspense> },
   {
     element: <AppLayout />,
     errorElement: <RouteError />,
