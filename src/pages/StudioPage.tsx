@@ -197,7 +197,7 @@ function Studio({ game }: { game: Game | null }) {
   const [capture, setCapture] = useState<MediaStream | null>(null)
   const [screen, setScreen] = useState<MediaStream | null>(null)
   const [mixer, setMixer] = useState<StudioMixer | null>(null)
-  const [monitorOpen, setMonitorOpen] = useState(false)
+  const [monitorState, setMonitorState] = useState<'off' | 'blocked' | 'on'>('off')
   const [qrOpen, setQrOpen] = useState(false)
   const [mixerOpen, setMixerOpen] = useState(false)
   const [notice, setNotice] = useState<{ tone: 'warn' | 'ok'; text: string } | null>(null)
@@ -297,7 +297,7 @@ function Studio({ game }: { game: Game | null }) {
   // Janela de retorno: avisa se foi fechada
   useEffect(() => {
     if (!mixer) return
-    const id = window.setInterval(() => setMonitorOpen(mixer.monitorOpen), 1000)
+    const id = window.setInterval(() => setMonitorState(mixer.monitorState), 1000)
     return () => window.clearInterval(id)
   }, [mixer])
 
@@ -332,8 +332,8 @@ function Studio({ game }: { game: Game | null }) {
 
   const openMonitor = (m: StudioMixer | null = mixer) => {
     if (!m) return
-    const ok = m.openMonitor(t('studio.monitorTitle'), t('studio.monitorText'))
-    setMonitorOpen(ok)
+    const ok = m.openMonitor({ title: t('studio.monitorTitle'), text: t('studio.monitorText'), button: t('studio.monitorActivate'), on: t('studio.monitorPlaying') })
+    setMonitorState(m.monitorState)
     if (!ok) setNotice({ tone: 'warn', text: t('studio.monitorBlocked') })
   }
 
@@ -692,9 +692,9 @@ function Studio({ game }: { game: Game | null }) {
                 type="button"
                 onClick={() => openMonitor()}
                 disabled={!mixer}
-                className={cn('rounded-md px-2 py-1 text-[11px] font-semibold disabled:opacity-40', monitorOpen ? 'bg-success/15 text-success' : 'bg-white/[0.08] text-fg hover:bg-white/[0.13]')}
+                className={cn('rounded-md px-2 py-1 text-[11px] font-semibold disabled:opacity-40', monitorState === 'on' ? 'bg-success/15 text-success' : monitorState === 'blocked' ? 'bg-gold/15 text-gold' : 'bg-white/[0.08] text-fg hover:bg-white/[0.13]')}
               >
-                {monitorOpen ? t('studio.monitorOn') : t('studio.monitorOpen')}
+                {monitorState === 'on' ? t('studio.monitorOn') : monitorState === 'blocked' ? t('studio.monitorBlockedShort') : t('studio.monitorOpen')}
               </button>
             </div>
             <input
@@ -768,7 +768,7 @@ function Studio({ game }: { game: Game | null }) {
               {!screenMode && <Meter mixer={mixer} ch="game" />}
               <Meter mixer={mixer} ch="voice" />
             </span>
-            {mixer && !monitorOpen && <Headphones size={14} className="text-gold" aria-label={t('studio.monitorClosed')} />}
+            {mixer && monitorState !== 'on' && <Headphones size={14} className="text-gold" aria-label={t('studio.monitorClosed')} />}
           </button>
 
           <div className="ml-auto flex min-w-0 items-center gap-3">

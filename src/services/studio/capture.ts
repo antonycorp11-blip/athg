@@ -28,14 +28,11 @@ export function captureSupported() {
 /** Controles podem ficar por cima do palco sem aparecer na gravação. */
 export const overlaysHidden = () => typeof window.RestrictionTarget?.fromElement === 'function'
 
-/**
- * Pede a captura desta aba (com o som do jogo) e limita ao elemento do palco.
- * O som da aba deixa de tocar direto: quem toca é o retorno do mixer.
- */
+/** Pede a captura desta aba (com o som do jogo) e limita ao elemento do palco. */
 export async function captureStage(stage: HTMLElement, fps: number): Promise<MediaStream> {
   const stream = await navigator.mediaDevices.getDisplayMedia({
     video: { frameRate: { ideal: fps, max: fps } },
-    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: true },
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false },
     preferCurrentTab: true,
     selfBrowserSurface: 'include',
     surfaceSwitching: 'exclude',

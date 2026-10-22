@@ -19,7 +19,8 @@ type StudioState = Extract<StudioToCam, { t: 'state' }>
 const VIDEO_MAX_BITRATE = 8_000_000
 const VIDEO: MediaTrackConstraints = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }
 
-const NOISE_KEY = 'studio-cam-noise'
+// v2: o padrão passou a ser desligado (o processamento do iPhone abafava a voz).
+const NOISE_KEY = 'studio-cam-noise-v2'
 
 /** Voz: com redução de ruído usa o processamento de voz do iPhone (o mesmo das ligações). */
 const voiceConstraints = (noise: boolean): MediaTrackConstraints => ({ echoCancellation: noise, noiseSuppression: noise, autoGainControl: noise })
@@ -72,7 +73,7 @@ export default function StudioCamPage() {
   const [facing, setFacing] = useState<Facing>('user')
   const [studio, setStudio] = useState<StudioState>({ t: 'state', scene: 'game-face', recording: false, startedAt: null, screen: false, mirror: true, rotate: 0 })
   const [now, setNow] = useState(Date.now())
-  const [noise, setNoise] = useState(() => storage.get(NOISE_KEY, true))
+  const [noise, setNoise] = useState(() => storage.get(NOISE_KEY, false))
   const noiseRef = useRef(noise)
   noiseRef.current = noise
   const { angle, size } = useScreenAngle()

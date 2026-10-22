@@ -1,8 +1,9 @@
 // Mixer do Modo Gravação: som do jogo (capturado da aba) + voz ao vivo do iPhone.
 // - Gravação: o vídeo leva só o som do jogo (com o volume do mixer); a voz vai crua para
 //   um WAV separado (ver wav.ts), para tratar o ruído no editor.
-// - Retorno: a mistura dos dois toca numa janelinha separada. O som de outra janela não
-//   entra na captura da aba, então não há eco nem som duplicado na gravação.
+// - O jogo continua tocando direto na aba (sem atraso para quem joga).
+// - Retorno: a voz do iPhone toca numa janelinha separada. O som de outra janela não
+//   entra na captura da aba, então a voz não vaza para a trilha do jogo.
 
 export type MixChannel = 'game' | 'voice'
 
@@ -25,6 +26,7 @@ export class StudioMixer {
   private monitorGain: GainNode
   private monitorDest: MediaStreamAudioDestinationNode
   private monitorWin: Window | null = null
+  private monitorEl: HTMLAudioElement | null = null
   private buffer = new Float32Array(1024)
   private sampledAt = 0
 
@@ -41,11 +43,11 @@ export class StudioMixer {
       analyser.fftSize = 1024
       input.connect(gain)
       gain.connect(analyser)
-      gain.connect(this.monitorGain)
       return { input, gain, analyser, source: null, volume: 1, muted: false, level: 0 }
     }
     this.channels = { game: make(), voice: make() }
     this.channels.game.gain.connect(this.recordDest)
+    this.channels.voice.gain.connect(this.monitorGain)
   }
 
   /** Voz antes do volume do mixer: é o que vai para o arquivo separado. */
@@ -98,29 +100,47 @@ export class StudioMixer {
     return this.channels[ch].level
   }
 
-  /** Abre (ou reaproveita) a janela de retorno. Precisa vir de um clique. */
-  openMonitor(title: string, text: string) {
+  /**
+   * Abre (ou reaproveita) a janela de retorno. O Chrome só deixa uma janela tocar som
+   * depois de um clique nela: se o play for bloqueado, a janela mostra o botão de ativar.
+   */
+  openMonitor(texts: { title: string; text: string; button: string; on: string }) {
     if (this.monitorWin && !this.monitorWin.closed) {
       this.monitorWin.focus()
       return true
     }
-    const w = window.open('', 'athg-retorno', 'width=380,height=170')
+    const w = window.open('', 'athg-retorno', 'width=380,height=200')
     if (!w) return false
-    w.document.title = title
-    w.document.body.style.cssText =
+    const doc = w.document
+    doc.title = texts.title
+    doc.body.style.cssText =
       'margin:0;height:100vh;display:grid;place-items:center;background:#060b14;color:#f5f7fa;font:14px/1.5 system-ui,sans-serif;text-align:center'
-    w.document.body.innerHTML = `<div style="padding:16px"><b>${title}</b><br><span style="color:#94a3b8">${text}</span></div>`
-    const el = w.document.createElement('audio')
-    el.autoplay = true
+    doc.body.innerHTML = `<div style="padding:16px"><b>${texts.title}</b><br><span id="s" style="color:#94a3b8">${texts.text}</span><br>
+      <button id="go" style="margin-top:12px;padding:10px 18px;border:0;border-radius:10px;background:#1677ff;color:#fff;font:600 14px system-ui;cursor:pointer">${texts.button}</button></div>`
+    const el = doc.createElement('audio')
     el.srcObject = this.monitorDest.stream
-    w.document.body.appendChild(el)
-    void el.play().catch(() => {})
+    doc.body.appendChild(el)
+    const go = doc.getElementById('go')!
+    const status = doc.getElementById('s')!
+    const play = () =>
+      el.play().then(
+        () => {
+          go.style.display = 'none'
+          status.textContent = texts.on
+        },
+        () => void (go.style.display = 'inline-block'),
+      )
+    go.addEventListener('click', () => void play())
+    void play()
     this.monitorWin = w
+    this.monitorEl = el
     return true
   }
 
-  get monitorOpen() {
-    return Boolean(this.monitorWin && !this.monitorWin.closed)
+  /** 'off' = janela fechada; 'blocked' = aberta esperando o clique; 'on' = tocando. */
+  get monitorState(): 'off' | 'blocked' | 'on' {
+    if (!this.monitorWin || this.monitorWin.closed) return 'off'
+    return this.monitorEl && !this.monitorEl.paused ? 'on' : 'blocked'
   }
 
   async resume() {
