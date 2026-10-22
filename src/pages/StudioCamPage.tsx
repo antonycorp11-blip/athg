@@ -16,8 +16,10 @@ type Facing = 'user' | 'environment'
 type CamStatus = 'idle' | 'connecting' | 'connected' | 'error'
 type StudioState = Extract<StudioToCam, { t: 'state' }>
 
-const VIDEO_MAX_BITRATE = 8_000_000
-const VIDEO: MediaTrackConstraints = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }
+// 720p: nítido na miniatura e na cena Rosto, e leve para o computador decodificar
+// (Macs sem aceleração de vídeo decodificam no processador).
+const VIDEO_MAX_BITRATE = 4_000_000
+const VIDEO: MediaTrackConstraints = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }
 
 // v2: o padrão passou a ser desligado (o processamento do iPhone abafava a voz).
 const NOISE_KEY = 'studio-cam-noise-v2'

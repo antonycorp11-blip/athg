@@ -33,9 +33,10 @@ export const overlaysHidden = () => typeof window.RestrictionTarget?.fromElement
  * O som da aba para de tocar direto: o jogo passa a ser ouvido pelo retorno do mixer,
  * já com o volume que vai para o vídeo (o que você ouve é o que é gravado).
  */
-export async function captureStage(stage: HTMLElement, fps: number): Promise<MediaStream> {
+export async function captureStage(stage: HTMLElement, quality: StudioQuality): Promise<MediaStream> {
+  const q = QUALITY[quality]
   const stream = await navigator.mediaDevices.getDisplayMedia({
-    video: { frameRate: { ideal: fps, max: fps } },
+    video: { width: { ideal: q.width, max: q.width }, height: { ideal: q.height, max: q.height }, frameRate: { ideal: q.fps, max: q.fps } },
     audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: true },
     preferCurrentTab: true,
     selfBrowserSurface: 'include',
@@ -51,7 +52,12 @@ export async function captureStage(stage: HTMLElement, fps: number): Promise<Med
     stream.getTracks().forEach((t) => t.stop())
     throw new Error('not-this-tab')
   }
-  track.contentHint = 'motion'
+  // Resolução travada: sem isso o Chrome baixa a resolução sozinho quando falta processador
+  // (a imagem ficava abaixo de HD). Travado, ele prefere perder quadros e manter a nitidez.
+  track.contentHint = 'detail'
+  await track
+    .applyConstraints({ width: { min: q.width, max: q.width }, height: { min: q.height, max: q.height }, frameRate: { ideal: q.fps, max: q.fps } })
+    .catch(() => track.applyConstraints({ width: { ideal: q.width, max: q.width }, height: { ideal: q.height, max: q.height }, frameRate: { max: q.fps } }).catch(() => {}))
   // O Chrome só corta o som direto da aba quando a trilha de áudio da captura tem um
   // consumidor "de verdade": um gravador mudo (descartado) liga isso já na captura,
   // senão o jogo tocaria em dobro (direto + retorno) até a primeira gravação.
@@ -70,9 +76,10 @@ export async function captureStage(stage: HTMLElement, fps: number): Promise<Med
 }
 
 /** Modo tela: escolhe a tela (ou janela) do Mac para mostrar no palco. */
-export async function captureScreen(fps: number): Promise<MediaStream> {
+export async function captureScreen(quality: StudioQuality): Promise<MediaStream> {
+  const q = QUALITY[quality]
   return navigator.mediaDevices.getDisplayMedia({
-    video: { frameRate: { ideal: fps, max: fps }, displaySurface: 'monitor' },
+    video: { width: { ideal: q.width, max: q.width }, height: { ideal: q.height, max: q.height }, frameRate: { ideal: q.fps, max: q.fps }, displaySurface: 'monitor' },
     audio: false,
     selfBrowserSurface: 'exclude',
     monitorTypeSurfaces: 'include',
@@ -92,8 +99,24 @@ export function pickVideoMime() {
   return candidates.find((m) => MediaRecorder.isTypeSupported(m)) ?? ''
 }
 
+/** Resolução e quadros do vídeo final. 720p 30 é o que um Mac sem aceleração de vídeo aguenta melhor. */
 export const QUALITY = {
-  30: { fps: 30, videoBitsPerSecond: 8_000_000 },
-  60: { fps: 60, videoBitsPerSecond: 12_000_000 },
+  '720p30': { width: 1280, height: 720, fps: 30, videoBitsPerSecond: 6_000_000 },
+  '1080p30': { width: 1920, height: 1080, fps: 30, videoBitsPerSecond: 10_000_000 },
+  '720p60': { width: 1280, height: 720, fps: 60, videoBitsPerSecond: 9_000_000 },
 } as const
-export type StudioFps = keyof typeof QUALITY
+export type StudioQuality = keyof typeof QUALITY
+export const isQuality = (v: unknown): v is StudioQuality => typeof v === 'string' && v in QUALITY
+
+/** O Chrome está desenhando sem placa de vídeo (tudo no processador)? */
+export function softwareRendering() {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl')
+    if (!gl) return true
+    const info = gl.getExtension('WEBGL_debug_renderer_info')
+    const renderer = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER))
+    return /swiftshader|software|llvmpipe/i.test(renderer)
+  } catch {
+    return true
+  }
+}

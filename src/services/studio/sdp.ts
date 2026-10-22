@@ -1,7 +1,7 @@
 // Ajustes de SDP na resposta do estúdio: pedem ao iPhone vídeo com bitrate alto desde o
 // início (sem a rampa lenta de qualidade do WebRTC) e voz Opus em alta qualidade.
 
-const VIDEO_PARAMS = 'x-google-start-bitrate=4000;x-google-min-bitrate=1500;x-google-max-bitrate=8000'
+const VIDEO_PARAMS = 'x-google-start-bitrate=2500;x-google-min-bitrate=1200;x-google-max-bitrate=4000'
 const OPUS_PARAMS = 'maxaveragebitrate=128000;stereo=0;sprop-stereo=0;useinbandfec=1;usedtx=0'
 
 export function tuneAnswer(sdp: string) {

@@ -3,13 +3,13 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import qrcode from 'qrcode-generator'
 import {
   ArrowLeft, Circle, CircleCheck, FlipHorizontal2, FolderOpen, Headphones, Maximize, Minimize, MonitorUp, RectangleHorizontal, RotateCw, ScreenShare, SlidersHorizontal,
-  AudioLines, Smartphone, Square, SquareDashed, TriangleAlert, Video, Volume2, VolumeX,
+  AudioLines, Gauge, Smartphone, Square, SquareDashed, TriangleAlert, Video, Volume2, VolumeX,
 } from 'lucide-react'
 import type { Game } from '@/types/game'
 import { STUDIO_SCENES, type CamRotation, type CamToStudio, type StudioScene } from '@/types/studio'
 import { gamesService, isPlayable } from '@/services/gamesService'
 import { storage } from '@/services/storage'
-import { captureScreen, captureStage, captureSupported, overlaysHidden, pickVideoMime, QUALITY, type StudioFps } from '@/services/studio/capture'
+import { captureScreen, captureStage, captureSupported, isQuality, overlaysHidden, pickVideoMime, QUALITY, softwareRendering, type StudioQuality } from '@/services/studio/capture'
 import { createDiskFile, diskSupported, ensureWritable, extensionFor, fileDuration, pickFolder, savedFolder, takeName, type DiskFile } from '@/services/studio/disk'
 import { StudioMixer, type MixChannel } from '@/services/studio/mixer'
 import { VoiceTap } from '@/services/studio/wav'
@@ -42,7 +42,7 @@ interface StudioSettings {
   shape: CamShape
   mirror: boolean
   rotate: CamRotation
-  fps: StudioFps
+  quality: StudioQuality
   gameVol: number
   voiceVol: number
   gameMute: boolean
@@ -50,7 +50,7 @@ interface StudioSettings {
   monitorVol: number
 }
 const DEFAULTS: StudioSettings = {
-  scene: 'game-face', x: 0.74, y: 0.66, w: 0.24, shape: 'wide', mirror: true, rotate: 0, fps: 30,
+  scene: 'game-face', x: 0.74, y: 0.66, w: 0.24, shape: 'wide', mirror: true, rotate: 0, quality: '720p30',
   gameVol: 1, voiceVol: 1, gameMute: false, voiceMute: false, monitorVol: 1,
 }
 const SETTINGS_KEY = 'studio-settings'
@@ -142,7 +142,7 @@ function Meter({ mixer, ch, className }: { mixer: StudioMixer | null; ch: MixCha
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!mixer) return
-    let raf = 0
+    // 10 vezes por segundo basta para o olho, e pesa bem menos que redesenhar a cada quadro.
     const tick = () => {
       const level = mixer.level(ch)
       const pct = level > 0 ? clamp(((20 * Math.log10(level) + 60) / 60) * 100, 0, 100) : 0
@@ -151,10 +151,10 @@ function Meter({ mixer, ch, className }: { mixer: StudioMixer | null; ch: MixCha
         el.style.width = `${pct}%`
         el.style.background = level > 0.89 ? 'var(--color-danger)' : level > 0.5 ? 'var(--color-gold)' : 'var(--color-success)'
       }
-      raf = requestAnimationFrame(tick)
     }
     tick()
-    return () => cancelAnimationFrame(raf)
+    const id = window.setInterval(tick, 100)
+    return () => window.clearInterval(id)
   }, [mixer, ch])
   return (
     <div className={cn('h-1.5 overflow-hidden rounded-full bg-white/[0.08]', className)} aria-hidden>
@@ -182,7 +182,11 @@ function Studio({ game }: { game: Game | null }) {
   const hudOk = overlaysHidden()
   const games = useMemo(() => gamesService.getAll().filter((g) => isPlayable(g, true)), [])
 
-  const [settings, setSettings] = useState<StudioSettings>(() => fit({ ...DEFAULTS, ...storage.get<Partial<StudioSettings>>(SETTINGS_KEY, {}) }))
+  const [settings, setSettings] = useState<StudioSettings>(() => {
+    const saved = storage.get<Partial<StudioSettings>>(SETTINGS_KEY, {})
+    return fit({ ...DEFAULTS, ...saved, quality: isQuality(saved.quality) ? saved.quality : DEFAULTS.quality })
+  })
+  const slowMachine = useMemo(softwareRendering, [])
   const update = useCallback((patch: Partial<StudioSettings>) => {
     setSettings((s) => {
       const next = fit({ ...s, ...patch })
@@ -192,6 +196,7 @@ function Studio({ game }: { game: Game | null }) {
   }, [])
 
   const stageRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const camVideoRef = useRef<HTMLVideoElement>(null)
   const [folder, setFolder] = useState<{ dir: FileSystemDirectoryHandle; granted: boolean } | null>(null)
   const [capture, setCapture] = useState<MediaStream | null>(null)
@@ -230,11 +235,20 @@ function Studio({ game }: { game: Game | null }) {
     setNotice({ tone: 'ok', text: t('studio.saved', { name: take.base }) })
   }, [t])
 
-  const startRec = useCallback(async () => {
+  const startRec = useCallback(async (fromClick = false) => {
     if (takeRef.current) return
     if (!folder?.granted) return setNotice({ tone: 'warn', text: t('studio.needFolder') })
     if (!capture || !mixer) return setNotice({ tone: 'warn', text: t('studio.needCapture') })
     if (screenMode && !screen) return setNotice({ tone: 'warn', text: t('studio.needScreen') })
+    // A gravação sai do tamanho do palco na tela (o Chrome não amplia). Palco menor que a
+    // qualidade escolhida: entra em tela cheia antes (precisa de um clique no computador).
+    const target = QUALITY[settings.quality]
+    const small = (stageRef.current?.getBoundingClientRect().width ?? 0) < target.width - 2
+    if (small && fromClick && !document.fullscreenElement) {
+      await rootRef.current?.requestFullscreen().catch(() => {})
+      await new Promise((r) => setTimeout(r, 500))
+    }
+    const stillSmall = (stageRef.current?.getBoundingClientRect().width ?? 0) < target.width - 2
     const mimeType = pickVideoMime()
     const base = takeName(game?.slug ?? SCREEN_SLUG)
     try {
@@ -246,7 +260,7 @@ function Studio({ game }: { game: Game | null }) {
       // Vídeo do palco com o som do jogo; a voz do iPhone vai para o WAV separado.
       const recorder = new MediaRecorder(new MediaStream([...capture.getVideoTracks(), mixer.recordTrack]), {
         mimeType: mimeType || undefined,
-        videoBitsPerSecond: QUALITY[settings.fps].videoBitsPerSecond,
+        videoBitsPerSecond: QUALITY[settings.quality].videoBitsPerSecond,
         audioBitsPerSecond: 192_000,
       })
       recorder.ondataavailable = (e) => video.write(e.data)
@@ -259,13 +273,19 @@ function Studio({ game }: { game: Game | null }) {
       recorder.start(1000)
       if (tap && voice) tap.start(voice)
       setRecording({ startedAt, stageWidth: stageRef.current?.getBoundingClientRect().width ?? 0 })
-      setNotice(!screenMode && !mixer.hasInput('game') ? { tone: 'warn', text: t('studio.noGameAudio') } : null)
+      setNotice(
+        !screenMode && !mixer.hasInput('game')
+          ? { tone: 'warn', text: t('studio.noGameAudio') }
+          : stillSmall
+            ? { tone: 'warn', text: t('studio.smallStage') }
+            : null,
+      )
     } catch {
       setNotice({ tone: 'warn', text: t('studio.recError') })
     }
-  }, [folder, capture, mixer, screen, screenMode, game, settings.fps, t])
+  }, [folder, capture, mixer, screen, screenMode, game, settings.quality, t])
 
-  const toggleRec = () => (takeRef.current ? stopRec() : void startRec())
+  const toggleRec = (fromClick = false) => (takeRef.current ? stopRec() : void startRec(fromClick))
 
   const onCtl = (m: CamToStudio) => {
     if (m.t === 'scene') update({ scene: m.scene })
@@ -347,7 +367,7 @@ function Studio({ game }: { game: Game | null }) {
     }
     void m.resume()
     try {
-      const stream = await captureStage(stageRef.current, settings.fps)
+      const stream = await captureStage(stageRef.current, settings.quality)
       stream.getVideoTracks()[0].addEventListener('ended', () => {
         setCapture(null)
         m.setStream('game', null)
@@ -364,7 +384,7 @@ function Studio({ game }: { game: Game | null }) {
 
   const pickScreen = async () => {
     try {
-      const stream = await captureScreen(settings.fps)
+      const stream = await captureScreen(settings.quality)
       stream.getVideoTracks()[0].addEventListener('ended', () => setScreen(null))
       screen?.getTracks().forEach((tr) => tr.stop())
       setScreen(stream)
@@ -435,7 +455,6 @@ function Studio({ game }: { game: Game | null }) {
     }
   }, [update, gameUrl])
 
-  const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement === rootRef.current)
     document.addEventListener('fullscreenchange', onChange)
@@ -498,7 +517,7 @@ function Studio({ game }: { game: Game | null }) {
   const recButton = (compact = false) => (
     <button
       type="button"
-      onClick={toggleRec}
+      onClick={() => toggleRec(true)}
       disabled={!ready && !recording}
       className={cn(
         'flex shrink-0 items-center gap-2 rounded-lg font-bold transition-colors disabled:opacity-40',
@@ -551,15 +570,21 @@ function Studio({ game }: { game: Game | null }) {
               {capture ? t('studio.captureOn') : t('studio.enableCapture')}
             </SetupButton>
             <select
-              value={s.fps}
+              value={s.quality}
               disabled={Boolean(capture)}
-              onChange={(e) => update({ fps: Number(e.target.value) as StudioFps })}
+              onChange={(e) => isQuality(e.target.value) && update({ quality: e.target.value })}
               aria-label={t('studio.quality')}
               className="h-8 rounded-md border border-line bg-white/[0.06] px-2 text-xs font-semibold disabled:opacity-50"
             >
-              <option value={30}>30 fps</option>
-              <option value={60}>60 fps</option>
+              <option value="720p30">{t('studio.q720')}</option>
+              {window.screen.width >= 1920 && <option value="1080p30">1080p · 30</option>}
+              <option value="720p60">720p · 60</option>
             </select>
+            {slowMachine && (
+              <span className="grid size-8 shrink-0 place-items-center text-gold" title={t('studio.slowMachine')} aria-label={t('studio.slowMachine')}>
+                <Gauge size={16} aria-hidden />
+              </span>
+            )}
             <button
               type="button"
               onClick={toggleFullscreen}
@@ -590,7 +615,9 @@ function Studio({ game }: { game: Game | null }) {
             onWheel={(e) => s.scene === 'game-face' && update({ w: s.w - e.deltaY * 0.0006 })}
             style={camStyle}
             className={cn(
-              'absolute z-10 touch-none overflow-hidden bg-[#0b1220] shadow-[0_10px_30px_-8px_rgb(0_0_0/0.7)]',
+              'absolute z-10 touch-none overflow-hidden bg-[#0b1220]',
+              // Sombra sobre vídeo em movimento custa caro sem placa de vídeo.
+              !slowMachine && 'shadow-[0_10px_30px_-8px_rgb(0_0_0/0.7)]',
               !dragging && 'transition-[left,top,width,height,border-radius,opacity] duration-300 ease-athg',
               s.scene === 'game-face' && 'cursor-grab active:cursor-grabbing',
             )}
@@ -615,7 +642,7 @@ function Studio({ game }: { game: Game | null }) {
       {/* Tela cheia: controles por cima do jogo (ficam fora da gravação) */}
       {fullscreen && hudOk && (
         <div className="absolute inset-x-0 bottom-3 z-30 flex justify-center px-3">
-          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/70 p-1.5 opacity-45 backdrop-blur transition-opacity duration-200 hover:opacity-100 focus-within:opacity-100">
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/70 p-1.5 opacity-45 transition-opacity duration-200 hover:opacity-100 focus-within:opacity-100">
             {STUDIO_SCENES.map((scene, i) => (
               <button
                 key={scene}
@@ -644,7 +671,7 @@ function Studio({ game }: { game: Game | null }) {
 
       {/* Mixer */}
       {mixerOpen && (
-        <div className={cn('absolute right-3 z-40 w-80 rounded-xl border border-line bg-bg/95 p-4 shadow-[var(--shadow-lift)] backdrop-blur', fullscreen ? 'bottom-20' : 'bottom-[76px]')}>
+        <div className={cn('absolute right-3 z-40 w-80 rounded-xl border border-line bg-bg/95 p-4 shadow-[var(--shadow-lift)]', fullscreen ? 'bottom-20' : 'bottom-[76px]')}>
           <p className="mb-3 text-sm font-semibold">{t('studio.mixer')}</p>
           {!screenMode && (
             <MixRow
