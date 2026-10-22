@@ -1,12 +1,15 @@
 package com.athg.gravador;
 
 import android.app.Activity;
+import android.Manifest;
 import android.content.ContentUris;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
@@ -87,6 +90,16 @@ public final class RecordingsActivity extends Activity {
         }
         setContentView(scroll);
         handler.post(progressTick);
+        // Permite ler também os arquivos do APK de teste anterior após reinstalação.
+        if (recordings.isEmpty() && Build.VERSION.SDK_INT <= 32
+                && checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 7);
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] grants) {
+        super.onRequestPermissionsResult(request, permissions, grants);
+        if (request == 7 && grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED) recreate();
     }
 
     private List<Recording> load() {
