@@ -1,4 +1,4 @@
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter } from 'react-router'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RouteError } from '@/components/layout/RouteError'
@@ -18,6 +18,8 @@ const load = {
   profile: () => import('@/pages/ProfilePage'),
   legal: () => import('@/pages/LegalPage'),
   admin: () => import('@/pages/AdminPage'),
+  studio: () => import('@/pages/StudioPage'),
+  studioCam: () => import('@/pages/StudioCamPage'),
   notFound: () => import('@/pages/NotFoundPage'),
 }
 
@@ -35,6 +37,8 @@ const ProfilePage = lazy(load.profile)
 const LegalPage = lazy(load.legal)
 const AdminPage = lazy(load.admin)
 const NotFoundPage = lazy(load.notFound)
+const StudioPage = lazy(load.studio)
+const StudioCamPage = lazy(load.studioCam)
 
 /** Pré-carrega em segundo plano as rotas do funil principal (jogo -> player). */
 export function prefetchCoreRoutes() {
@@ -48,6 +52,9 @@ export function prefetchCoreRoutes() {
 }
 
 export const router = createBrowserRouter([
+  // Modo Gravação: tela inteira, fora do layout do portal.
+  { path: 'estudio/:slug', errorElement: <RouteError />, element: <Suspense fallback={null}><StudioPage /></Suspense> },
+  { path: 'cam/:room', errorElement: <RouteError />, element: <Suspense fallback={null}><StudioCamPage /></Suspense> },
   {
     element: <AppLayout />,
     errorElement: <RouteError />,

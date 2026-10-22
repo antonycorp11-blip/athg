@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router'
-import { Share2, Flag, ArrowLeft, Sparkles, Layers } from 'lucide-react'
+import { Link, Navigate, useNavigate, useParams } from 'react-router'
+import { Share2, Flag, ArrowLeft, Sparkles, Layers, Video } from 'lucide-react'
 import { gamesService, isPlayable } from '@/services/gamesService'
 import { useAccount, useAuthStatus, useIsAdmin } from '@/hooks/useIsAdmin'
 import { useSeo } from '@/hooks/useSeo'
@@ -26,6 +26,7 @@ export default function PlayPage() {
   const share = useShareGame()
   const [reportOpen, setReportOpen] = useState(false)
   const isAdmin = useIsAdmin()
+  const navigate = useNavigate()
   const authStatus = useAuthStatus()
   const playable = Boolean(game && isPlayable(game, isAdmin))
   // Prévia admin: a flag de admin chega depois do login/sync. Espera um pouco antes de mandar embora.
@@ -86,6 +87,11 @@ export default function PlayPage() {
               <FavoriteButton game={game} className="size-10 border-0 bg-transparent backdrop-blur-none hover:bg-white/[0.07] hover:scale-100" />
               <IconButton icon={Share2} label={t('common.share')} onClick={() => share(game, 'player')} />
               <IconButton icon={Flag} label={t('player.report')} onClick={() => setReportOpen(true)} />
+              {isAdmin && (
+                <span className="hidden md:contents">
+                  <IconButton icon={Video} label={t('studio.title')} onClick={() => navigate(`/estudio/${game.slug}`)} />
+                </span>
+              )}
             </>
           }
         />

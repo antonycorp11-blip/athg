@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useParams } from 'react-router'
-import { Play, Share2, Hourglass, Gamepad2, ScrollText, Image, Layers, Info, Code, Calendar, MonitorSmartphone, RotateCw } from 'lucide-react'
+import { Play, Share2, Hourglass, Gamepad2, ScrollText, Image, Layers, Info, Code, Calendar, MonitorSmartphone, RotateCw, Video } from 'lucide-react'
 import { gamesService, isAdminPreview, isPlayable } from '@/services/gamesService'
 import { useIsAdmin } from '@/hooks/useIsAdmin'
 import { analytics } from '@/services/analytics'
@@ -75,6 +75,13 @@ export default function GamePage() {
             <Button size="lg" variant="secondary" icon={Share2} onClick={() => share(game, 'game_page')} aria-label={t('common.share')}>
               <span className="hidden sm:inline">{t('common.share')}</span>
             </Button>
+            {isAdmin && playable && (
+              <span className="hidden md:contents">
+                <ButtonLink to={`/estudio/${game.slug}`} size="lg" variant="secondary" icon={Video}>
+                  {t('studio.title')}
+                </ButtonLink>
+              </span>
+            )}
           </div>
         </div>
       </section>
