@@ -207,6 +207,11 @@ public final class FaceOverlay {
                     voice.accept(pcm, m.optDouble("end", System.currentTimeMillis()));
                     return;
                 }
+                if (type.equals("pcm-hq")) {
+                    byte[] pcm = Base64.decode(m.optString("data"), Base64.DEFAULT);
+                    voice.acceptRaw(pcm, m.optDouble("end", System.currentTimeMillis()), m.optInt("rate", 48000));
+                    return;
+                }
                 main.post(() -> {
                     switch (type) {
                         case "room": roomUrl = m.optString("url"); break;

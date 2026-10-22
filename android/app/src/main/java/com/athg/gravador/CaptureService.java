@@ -187,6 +187,9 @@ public final class CaptureService extends Service {
             v.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);
             v.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
             v.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2);
+            // Tempo real: o codificador prioriza entregar todos os quadros no ritmo da tela.
+            v.setInteger(MediaFormat.KEY_PRIORITY, 0);
+            v.setInteger(MediaFormat.KEY_OPERATING_RATE, fps);
             video.configure(v, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             inputSurface = video.createInputSurface();
 

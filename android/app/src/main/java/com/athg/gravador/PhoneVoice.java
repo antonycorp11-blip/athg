@@ -18,7 +18,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-/** Só o PCM enviado pelo microfone do iPhone entra no WAV e no retorno do fone. */
+/**
+ * Só o microfone do iPhone entra no WAV e no retorno do fone.
+ * - WAV: microfone cru do iPhone (canal "pcm", sem a compressão da chamada), quando chega.
+ *   Sem ele (página antiga no iPhone), usa o áudio da chamada.
+ * - Retorno: áudio da chamada (chega com menos atraso).
+ */
 public final class PhoneVoice {
     private static final int RATE = 48000;
     private final Context context;
@@ -30,9 +35,10 @@ public final class PhoneVoice {
     private long startMs;
     private long written;
     private int peak;
-    private double sumSquares;
-    private long sampleCount;
     private boolean firstChunk;
+    /** Última vez que chegou microfone cru: enquanto chegar, o áudio da chamada não vai para o arquivo. */
+    private volatile long rawSeenAt;
+    private int fileRate = RATE;
 
     PhoneVoice(Context context) {
         this.context = context;
@@ -51,9 +57,11 @@ public final class PhoneVoice {
         monitor.play();
     }
 
+    /** Áudio da chamada: sempre no retorno; no arquivo só se o microfone cru não estiver chegando. */
     void accept(byte[] pcm, double endMs) {
         if (pcm.length < 2 || pcm.length % 2 != 0) return;
         queue.execute(() -> {
+            if (System.currentTimeMillis() - rawSeenAt > 2000) write(pcm, endMs, RATE);
             // Retorno no fone. Nunca lê o microfone do tablet.
             byte[] louder = pcm.clone();
             ByteBuffer audio = ByteBuffer.wrap(louder).order(ByteOrder.LITTLE_ENDIAN);
@@ -61,27 +69,34 @@ public final class PhoneVoice {
                 int value = Math.round(audio.getShort(i) * 2f);
                 audio.putShort(i, (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, value)));
             }
-            if (stream != null) try {
-                // Alinha só o primeiro bloco. O relógio de entrega do JS oscila; os blocos
-                // seguintes seguem o relógio das amostras, sem inserir cortes ou silêncio.
-                if (firstChunk) {
-                    long firstStart = Math.round(endMs - pcm.length / 2.0 / RATE * 1000);
-                    long offset = Math.max(-250, Math.min(10_000, firstStart - startMs));
-                    if (offset > 0) silence(offset * RATE / 1000 * 2);
-                    firstChunk = false;
-                }
-                ByteBuffer source = ByteBuffer.wrap(pcm).order(ByteOrder.LITTLE_ENDIAN);
-                for (int i = 0; i < pcm.length; i += 2) {
-                    int value = source.getShort(i);
-                    peak = Math.max(peak, Math.abs(value));
-                    sumSquares += (double) value * value;
-                    sampleCount++;
-                }
-                stream.write(pcm);
-                written += pcm.length;
-            } catch (Exception e) { Log.e("ATHG", "voice write", e); }
-            monitor.write(louder, 0, louder.length, AudioTrack.WRITE_BLOCKING);
+            monitor.write(louder, 0, louder.length, AudioTrack.WRITE_NON_BLOCKING);
         });
+    }
+
+    /** Microfone cru do iPhone: vai para o arquivo. */
+    void acceptRaw(byte[] pcm, double endMs, int rate) {
+        if (pcm.length < 2 || pcm.length % 2 != 0) return;
+        rawSeenAt = System.currentTimeMillis();
+        queue.execute(() -> write(pcm, endMs, rate));
+    }
+
+    private void write(byte[] pcm, double endMs, int rate) {
+        if (stream == null) return;
+        try {
+            // Alinha só o primeiro bloco ao início do vídeo; os seguintes entram em sequência
+            // contínua (o relógio de entrega oscila, o das amostras não).
+            if (firstChunk) {
+                fileRate = rate;
+                long firstStart = Math.round(endMs - pcm.length / 2.0 / rate * 1000);
+                long offset = Math.max(-250, Math.min(10_000, firstStart - startMs));
+                if (offset > 0) silence(offset * rate / 1000 * 2);
+                firstChunk = false;
+            }
+            ByteBuffer source = ByteBuffer.wrap(pcm).order(ByteOrder.LITTLE_ENDIAN);
+            for (int i = 0; i < pcm.length; i += 2) peak = Math.max(peak, Math.abs((int) source.getShort(i)));
+            stream.write(pcm);
+            written += pcm.length;
+        } catch (Exception e) { Log.e("ATHG", "voice write", e); }
     }
 
     void start(String name, long timeMs) {
@@ -104,8 +119,7 @@ public final class PhoneVoice {
                     startMs = timeMs;
                     written = 0;
                     peak = 0;
-                    sumSquares = 0;
-                    sampleCount = 0;
+                    fileRate = RATE;
                     firstChunk = true;
                 } catch (Exception e) { Log.e("ATHG", "voice start", e); }
             });
@@ -131,7 +145,7 @@ public final class PhoneVoice {
     private void closeInternal(double seconds) {
         if (stream == null) return;
         try {
-            long wanted = Math.round(seconds * RATE) * 2;
+            long wanted = Math.round(seconds * fileRate) * 2;
             if (wanted > written) silence(wanted - written);
             FileChannel channel = stream.getChannel();
             if (seconds > 0) channel.truncate(44 + wanted);
@@ -139,28 +153,27 @@ public final class PhoneVoice {
             channel.position(0);
             stream.write(header(length));
             stream.flush();
-            if (peak > 0 && sampleCount > 0 && length > 0) {
-                // Ganho pela energia média da voz, limitado para evitar amplificar ruído.
-                double rms = Math.sqrt(sumSquares / sampleCount);
-                double gain = Math.max(1.0, Math.min(8.0, 5500.0 / Math.max(1.0, rms)));
-                byte[] block = new byte[96000];
-                try (ParcelFileDescriptor readFd = context.getContentResolver().openFileDescriptor(uri, "r")) {
-                    if (readFd != null) {
-                        try (FileInputStream inputStream = new FileInputStream(readFd.getFileDescriptor())) {
-                            FileChannel input = inputStream.getChannel();
-                            for (long pos = 44; pos < 44 + length; pos += block.length) {
-                                input.position(pos);
-                                int count = input.read(ByteBuffer.wrap(block, 0, (int) Math.min(block.length, 44 + length - pos)));
-                                if (count <= 0) break;
-                                ByteBuffer samples = ByteBuffer.wrap(block).order(ByteOrder.LITTLE_ENDIAN);
-                                for (int i = 0; i + 1 < count; i += 2) {
-                                    double raised = samples.getShort(i) * gain;
-                                    // Limitador suave: evita saturação nos picos de fala.
-                                    double limited = 30000.0 * Math.tanh(raised / 30000.0);
-                                    samples.putShort(i, (short) Math.round(limited));
+            if (peak > 0 && length > 0) {
+                // Volume: leva o pico a -1 dBFS (sem estourar e sem distorcer), no máximo 6x.
+                double gain = Math.max(1.0, Math.min(6.0, 29000.0 / peak));
+                if (gain > 1.05) {
+                    byte[] block = new byte[96000];
+                    try (ParcelFileDescriptor readFd = context.getContentResolver().openFileDescriptor(uri, "r")) {
+                        if (readFd != null) {
+                            try (FileInputStream inputStream = new FileInputStream(readFd.getFileDescriptor())) {
+                                FileChannel input = inputStream.getChannel();
+                                for (long pos = 44; pos < 44 + length; pos += block.length) {
+                                    input.position(pos);
+                                    int count = input.read(ByteBuffer.wrap(block, 0, (int) Math.min(block.length, 44 + length - pos)));
+                                    if (count <= 0) break;
+                                    ByteBuffer samples = ByteBuffer.wrap(block).order(ByteOrder.LITTLE_ENDIAN);
+                                    for (int i = 0; i + 1 < count; i += 2) {
+                                        long v = Math.round(samples.getShort(i) * gain);
+                                        samples.putShort(i, (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, v)));
+                                    }
+                                    channel.position(pos);
+                                    stream.write(block, 0, count);
                                 }
-                                channel.position(pos);
-                                stream.write(block, 0, count);
                             }
                         }
                     }
@@ -179,7 +192,7 @@ public final class PhoneVoice {
         ByteBuffer b = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN);
         b.put(new byte[]{'R','I','F','F'}).putInt((int) (36 + data));
         b.put(new byte[]{'W','A','V','E','f','m','t',' '}).putInt(16).putShort((short) 1).putShort((short) 1);
-        b.putInt(RATE).putInt(RATE * 2).putShort((short) 2).putShort((short) 16);
+        b.putInt(fileRate).putInt(fileRate * 2).putShort((short) 2).putShort((short) 16);
         b.put(new byte[]{'d','a','t','a'}).putInt((int) data);
         return b.array();
     }
