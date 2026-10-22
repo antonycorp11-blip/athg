@@ -405,14 +405,16 @@ function ReportsList({ db, reports, onChanged }: { db: Db; reports: { id: number
   )
 }
 
-type RecorderInfo = { version: string; notes: string; size: number; updatedAt: string }
+type RecorderInfo = { version: string; notes: string; size: number; updatedAt: string; path?: string }
 
 /** APK do ATHG Gravador (Android): fica num bucket privado do Supabase, só admins baixam. */
 function RecorderDownload({ db }: { db: Db }) {
   const info = useAsync(async () => {
-    const { data, error } = await db.storage.from('gravador').download('android/latest.json')
-    if (error || !data) return null
-    return JSON.parse(await data.text()) as RecorderInfo
+    // Link assinado + no-store: sempre a versão publicada agora (sem cache do navegador/CDN).
+    const { data, error } = await db.storage.from('gravador').createSignedUrl('android/latest.json', 60)
+    if (error || !data?.signedUrl) return null
+    const res = await fetch(`${data.signedUrl}&t=${Date.now()}`, { cache: 'no-store' })
+    return res.ok ? ((await res.json()) as RecorderInfo) : null
   }, [db])
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -422,7 +424,7 @@ function RecorderDownload({ db }: { db: Db }) {
     setBusy(true)
     setFailed(false)
     const name = `ATHG-Gravador-${meta?.version || 'android'}.apk`
-    const { data, error } = await db.storage.from('gravador').createSignedUrl('android/ATHG-Gravador.apk', 600, { download: name })
+    const { data, error } = await db.storage.from('gravador').createSignedUrl(meta?.path ?? 'android/ATHG-Gravador.apk', 600, { download: name })
     setBusy(false)
     if (error || !data?.signedUrl) return setFailed(true)
     window.location.href = data.signedUrl
