@@ -16,9 +16,12 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 import com.google.zxing.BarcodeFormat;
@@ -34,6 +37,8 @@ public final class MainActivity extends Activity {
     private TextView roomText;
     private ImageView qr;
     private Button record;
+    private Spinner quality;
+    private CheckBox openGame;
     private String previousRoom = "";
 
     @Override public void onCreate(Bundle state) {
@@ -71,14 +76,23 @@ public final class MainActivity extends Activity {
         scenes.addView(sceneButton("3 Só jogo", "game"), new LinearLayout.LayoutParams(0, dp(52), 1));
         box.addView(scenes);
         box.addView(button("Formato do rosto: alternar", () -> FaceOverlay.get(this).nextShape()));
+        box.addView(label("Qualidade da gravação", 16, Color.WHITE));
+        quality = new Spinner(this);
+        quality.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
+                new String[]{"Fluido · até 720p / 60 fps", "Equilibrado · até 1080p / 30 fps", "Máximo · até 1080p / 60 fps"}));
+        quality.setSelection(getPreferences(MODE_PRIVATE).getInt("quality", 0));
+        box.addView(quality);
+        box.addView(label("O app usa o melhor modo suportado pelo codificador do tablet. Veja o FPS medido após gravar.", 12, 0xff9aabc1));
+        openGame = new CheckBox(this);
+        openGame.setText("Abrir jogos ATHG em tela cheia ao gravar");
+        openGame.setTextColor(Color.WHITE);
+        openGame.setChecked(getPreferences(MODE_PRIVATE).getBoolean("open_game", true));
+        box.addView(openGame);
         record = button("3. Gravar tela e jogo", this::begin);
         box.addView(record);
-        box.addView(button("Abrir gravações", () -> {
-            Intent i = new Intent(Intent.ACTION_VIEW);
-            i.setDataAndType(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video/*");
-            try { startActivity(i); } catch (Exception e) { toast("Abra Filmes › ATHG Gravações no gerenciador de arquivos."); }
-        }));
-        box.addView(label("Deixe o tablet na orientação do jogo antes de tocar em Gravar. Durante a gravação, abra o jogo. Arraste a câmera para mover e use dois dedos para mudar o tamanho. As cenas também mudam pelo iPhone. Pare pela notificação ATHG. O áudio do tablet nunca usa o microfone do tablet.", 13, 0xff9aabc1));
+        box.addView(button("Ver gravações dentro do ATHG", () -> startActivity(new Intent(this, RecordingsActivity.class))));
+        box.addView(button("Abrir jogos ATHG em tela cheia", () -> startActivity(new Intent(this, GameActivity.class))));
+        box.addView(label("Deixe o tablet na orientação do jogo antes de gravar. Arraste a câmera para mover e use dois dedos para mudar o tamanho. As cenas também mudam pelo iPhone. Pare pela notificação ATHG. O áudio do tablet nunca usa o microfone do tablet. Em jogos externos, a barra de navegação depende do próprio jogo.", 13, 0xff9aabc1));
         setContentView(scroll);
         tick.run();
     }
@@ -97,6 +111,10 @@ public final class MainActivity extends Activity {
             boolean active = CaptureService.isRecording();
             record.setText(active ? "■ Parar gravação" : "● Gravar tela e jogo");
             String msg = active ? "Gravando " + CaptureService.elapsedText() : face.linkStatus();
+            if (!active) {
+                String stats = getSharedPreferences("capture", MODE_PRIVATE).getString("last_stats", "");
+                if (!stats.isEmpty()) msg += "\nÚltima gravação: " + stats;
+            }
             status.setText(msg);
             handler.postDelayed(this, 1000);
         }
@@ -139,8 +157,12 @@ public final class MainActivity extends Activity {
         i.setAction(CaptureService.ACTION_START);
         i.putExtra(CaptureService.EXTRA_RESULT, result);
         i.putExtra(CaptureService.EXTRA_DATA, data);
+        int selected = quality.getSelectedItemPosition();
+        i.putExtra(CaptureService.EXTRA_QUALITY, selected);
+        getPreferences(MODE_PRIVATE).edit().putInt("quality", selected).putBoolean("open_game", openGame.isChecked()).apply();
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
-        toast("Gravação iniciando. Abra o jogo.");
+        if (openGame.isChecked()) startActivity(new Intent(this, GameActivity.class));
+        else toast("Gravação iniciando. Abra o jogo.");
     }
 
     private void makeQr(String content) {

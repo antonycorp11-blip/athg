@@ -5,13 +5,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <application android:label="ATHG Gravador" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false" android:allowAudioPlaybackCapture="false">
+    <application android:label="ATHG Gravador" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false" android:allowAudioPlaybackCapture="true">
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="unspecified">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".GameActivity" android:exported="false" android:screenOrientation="unspecified" />
+        <activity android:name=".RecordingsActivity" android:exported="false" android:screenOrientation="unspecified" />
         <service android:name=".CaptureService" android:exported="false" android:foregroundServiceType="mediaProjection" />
     </application>
 </manifest>

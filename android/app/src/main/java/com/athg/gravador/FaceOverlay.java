@@ -3,8 +3,6 @@ package com.athg.gravador;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.PixelFormat;
-import android.media.AudioManager;
-import android.media.AudioAttributes;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -54,9 +52,6 @@ public final class FaceOverlay {
         this.context = context;
         wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         voice = new PhoneVoice(context);
-        AudioManager audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-        // O áudio reproduzido aqui é a voz do iPhone; não deve contaminar a trilha do jogo.
-        audio.setAllowedCapturePolicy(AudioAttributes.ALLOW_CAPTURE_BY_NONE);
     }
 
     public String roomUrl() { return roomUrl; }

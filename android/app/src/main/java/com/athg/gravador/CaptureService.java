@@ -45,6 +45,7 @@ public final class CaptureService extends Service {
     static final String ACTION_STOP = "com.athg.gravador.STOP";
     static final String EXTRA_RESULT = "result";
     static final String EXTRA_DATA = "data";
+    static final String EXTRA_QUALITY = "quality";
     private static final String CHANNEL = "athg_capture";
     private static volatile boolean recording;
     private static volatile long startedElapsed;
@@ -75,6 +76,15 @@ public final class CaptureService extends Service {
     private boolean muxStarted;
     private long baseMonoUs;
     private long startWallMs;
+    private int requestedQuality;
+    private int targetFps;
+    private int captureWidth;
+    private int captureHeight;
+    private long videoFrames;
+    private long lateFrames;
+    private long firstVideoPts = -1;
+    private long previousVideoPts = -1;
+    private long lastVideoPts;
 
     public static boolean isRecording() { return recording; }
     public static String lastError() { return error; }
@@ -107,6 +117,7 @@ public final class CaptureService extends Service {
         if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
         else startForeground(1, n);
         int result = intent.getIntExtra(EXTRA_RESULT, 0);
+        requestedQuality = intent.getIntExtra(EXTRA_QUALITY, 1);
         Intent data = Build.VERSION.SDK_INT >= 33
                 ? intent.getParcelableExtra(EXTRA_DATA, Intent.class)
                 : intent.getParcelableExtra(EXTRA_DATA);
@@ -151,15 +162,31 @@ public final class CaptureService extends Service {
 
             DisplayMetrics metrics = new DisplayMetrics();
             ((WindowManager) getSystemService(WINDOW_SERVICE)).getDefaultDisplay().getRealMetrics(metrics);
-            double scale = Math.min(1.0, 1920.0 / Math.max(metrics.widthPixels, metrics.heightPixels));
-            int width = Math.max(2, ((int) Math.round(metrics.widthPixels * scale) / 2) * 2);
-            int height = Math.max(2, ((int) Math.round(metrics.heightPixels * scale) / 2) * 2);
+            video = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+            android.media.MediaCodecInfo.VideoCapabilities caps = video.getCodecInfo()
+                    .getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).getVideoCapabilities();
+            // Escolhe uma combinação que o codificador deste tablet anuncia suportar.
+            int[][] options = requestedQuality == 0
+                    ? new int[][]{{1280, 60, 6_000_000}, {1920, 30, 8_000_000}, {1280, 30, 5_000_000}}
+                    : requestedQuality == 2
+                    ? new int[][]{{1920, 60, 12_000_000}, {1920, 30, 8_000_000}, {1280, 60, 6_000_000}}
+                    : new int[][]{{1920, 30, 8_000_000}, {1280, 60, 6_000_000}, {1280, 30, 5_000_000}};
+            int width = 0, height = 0, bitrate = 0, fps = 0;
+            for (int[] option : options) {
+                double scale = Math.min(1.0, (double) option[0] / Math.max(metrics.widthPixels, metrics.heightPixels));
+                int w = Math.max(2, ((int) Math.round(metrics.widthPixels * scale) / 2) * 2);
+                int h = Math.max(2, ((int) Math.round(metrics.heightPixels * scale) / 2) * 2);
+                if (caps.areSizeAndRateSupported(w, h, option[1])) {
+                    width = w; height = h; fps = option[1]; bitrate = option[2]; break;
+                }
+            }
+            if (width == 0) throw new IllegalStateException("Codificador sem modo de vídeo compatível");
+            captureWidth = width; captureHeight = height; targetFps = fps;
             MediaFormat v = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height);
             v.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
-            v.setInteger(MediaFormat.KEY_BIT_RATE, 8_000_000);
-            v.setInteger(MediaFormat.KEY_FRAME_RATE, 30);
+            v.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);
+            v.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
             v.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2);
-            video = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
             video.configure(v, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             inputSurface = video.createInputSurface();
 
@@ -188,6 +215,7 @@ public final class CaptureService extends Service {
             display = projection.createVirtualDisplay("ATHG Gravador", width, height, metrics.densityDpi,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, inputSurface, null, null);
             running = true; recording = true; startedElapsed = SystemClock.elapsedRealtime(); error = "";
+            videoFrames = 0; lateFrames = 0; firstVideoPts = -1; previousVideoPts = -1; lastVideoPts = 0;
             FaceOverlay.get(this).recording(true, startWallMs);
             main.post(notificationTick);
             videoThread = new Thread(this::drainVideo, "athg-video");
@@ -213,6 +241,11 @@ public final class CaptureService extends Service {
                     ByteBuffer buffer = video.getOutputBuffer(index);
                     if (buffer != null && info.size > 0 && (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
                         info.presentationTimeUs = normalizeVideoPts(info.presentationTimeUs);
+                        if (firstVideoPts < 0) firstVideoPts = info.presentationTimeUs;
+                        if (previousVideoPts >= 0 && info.presentationTimeUs - previousVideoPts > 1_500_000L / targetFps) lateFrames++;
+                        previousVideoPts = info.presentationTimeUs;
+                        lastVideoPts = info.presentationTimeUs;
+                        videoFrames++;
                         write(videoTrack, buffer, info);
                     }
                     eos = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
@@ -313,6 +346,11 @@ public final class CaptureService extends Service {
             if (muxStarted) {
                 ContentValues done = new ContentValues(); done.put(MediaStore.Video.Media.IS_PENDING, 0);
                 getContentResolver().update(outputUri, done, null, null);
+                double seconds = Math.max(0.001, (lastVideoPts - Math.max(0, firstVideoPts)) / 1_000_000.0);
+                String stats = captureWidth + "×" + captureHeight + " · alvo " + targetFps + " fps · medido "
+                        + String.format(Locale.ROOT, "%.1f", Math.max(0, videoFrames - 1) / seconds)
+                        + " fps · intervalos lentos " + lateFrames;
+                getSharedPreferences("capture", MODE_PRIVATE).edit().putString("last_stats", stats).apply();
             } else getContentResolver().delete(outputUri, null, null);
         }
         outputUri = null; muxStarted = false; videoTrack = -1; audioTrack = -1;
