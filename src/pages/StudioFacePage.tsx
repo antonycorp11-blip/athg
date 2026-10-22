@@ -33,12 +33,14 @@ type ToNative =
 declare global {
   interface Window {
     webkit?: { messageHandlers?: { athg?: { postMessage(m: ToNative): void } } }
+    athgAndroid?: { postMessage(json: string): void }
     athgFace?: { set(patch: Partial<View>): void; noise(on: boolean): void }
   }
 }
 
 const post = (m: ToNative) => {
-  window.webkit?.messageHandlers?.athg?.postMessage(m)
+  if (window.webkit?.messageHandlers?.athg) window.webkit.messageHandlers.athg.postMessage(m)
+  else window.athgAndroid?.postMessage(JSON.stringify(m))
 }
 /** Erros vão para o registro do app (log.txt), que já anota as mudanças de estado do iPhone. */
 const report = (where: string, e: unknown) => post({ type: 'link', status: `erro ${where}: ${e instanceof Error ? `${e.name} ${e.message}` : String(e)}`, camera: false })
