@@ -446,7 +446,7 @@ final class Studio: NSObject, ObservableObject, WKScriptMessageHandler {
         message = "Pronto: \(w)×\(h), chip de vídeo."
       } catch {
         armed = false
-        message = "Sem permissão de gravação de tela. Em Ajustes do Sistema › Privacidade e Segurança › Gravação de Tela, remova o ATHG Gravador (botão −), abra o app de novo e autorize. (\(error.localizedDescription))"
+        message = "A captura de tela falhou. Verifique a autorização do ATHG Gravador em Ajustes do Sistema › Privacidade e Segurança › Gravação do Áudio do Sistema e da Tela. (\(error.localizedDescription))"
         _ = CGRequestScreenCaptureAccess()
       }
     }

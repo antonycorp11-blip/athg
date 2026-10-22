@@ -8,6 +8,8 @@ mkdir -p "$APP/Contents/MacOS"
 cp Info.plist "$APP/Contents/Info.plist"
 swiftc -O -target x86_64-apple-macos13.0 main.swift -o "$APP/Contents/MacOS/ATHG Gravador" \
   -framework AppKit -framework AVFoundation -framework ScreenCaptureKit -framework WebKit -framework SwiftUI -framework Carbon -framework CoreImage
-# Assinatura local: o macOS guarda a permissão de gravação de tela para este app.
-codesign --force --deep -s - "$APP"
+# A permissão de captura depende da identidade de assinatura. Uma assinatura
+# ad hoc muda a cada compilação e faz o macOS pedir autorização novamente.
+codesign --force --deep --sign "ATHG Gravador Local" "$APP"
+codesign --verify --deep --strict "$APP"
 echo "Instalado em: $APP"
