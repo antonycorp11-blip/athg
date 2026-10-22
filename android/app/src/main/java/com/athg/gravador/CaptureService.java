@@ -51,6 +51,14 @@ public final class CaptureService extends Service {
     private static volatile String error = "";
     private final Object muxLock = new Object();
     private volatile boolean running;
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final Runnable notificationTick = new Runnable() {
+        @Override public void run() {
+            if (!recording) return;
+            ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).notify(1, notification("Gravando " + elapsedText()));
+            main.postDelayed(this, 1000);
+        }
+    };
     private MediaProjection projection;
     private VirtualDisplay display;
     private MediaCodec video;
@@ -181,7 +189,7 @@ public final class CaptureService extends Service {
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, inputSurface, null, null);
             running = true; recording = true; startedElapsed = SystemClock.elapsedRealtime(); error = "";
             FaceOverlay.get(this).recording(true, startWallMs);
-            ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).notify(1, notification("Gravando " + width + "×" + height));
+            main.post(notificationTick);
             videoThread = new Thread(this::drainVideo, "athg-video");
             audioThread = new Thread(this::feedAudio, "athg-audio");
             videoThread.start(); audioThread.start();
@@ -279,6 +287,7 @@ public final class CaptureService extends Service {
     private synchronized void finish() {
         if (!running && projection == null && muxer == null) { stopSelf(); return; }
         running = false; recording = false;
+        main.removeCallbacks(notificationTick);
         FaceOverlay.get(this).recording(false, 0);
         try { if (playback != null && playback.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) playback.stop(); } catch (Exception ignored) { }
         try { if (videoThread != null) videoThread.join(5000); } catch (InterruptedException ignored) { }
