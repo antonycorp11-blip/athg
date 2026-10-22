@@ -45,6 +45,10 @@ public final class FaceOverlay {
     private float lastTouchY;
     private float pinchStart;
     private int pinchWidth;
+    /** Arrastando o canto inferior direito: muda o tamanho com um dedo. */
+    private boolean cornerResize;
+    private float cornerStartX;
+    private int cornerStartWidth;
     private boolean recording;
     private long startedAt;
 
@@ -155,39 +159,61 @@ public final class FaceOverlay {
 
     private boolean touch(MotionEvent e) {
         if (params == null || web == null || scene.equals("face")) return false;
+        float corner = 56 * context.getResources().getDisplayMetrics().density;
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 lastTouchX = e.getRawX(); lastTouchY = e.getRawY();
+                cornerResize = e.getX() > params.width - corner && e.getY() > params.height - corner;
+                cornerStartX = e.getRawX(); cornerStartWidth = params.width;
                 return true;
             case MotionEvent.ACTION_POINTER_DOWN:
                 if (e.getPointerCount() >= 2) {
+                    cornerResize = false;
                     pinchStart = distance(e); pinchWidth = params.width;
                 }
                 return true;
             case MotionEvent.ACTION_MOVE:
                 if (e.getPointerCount() >= 2 && pinchStart > 0) {
-                    int screenW = context.getResources().getDisplayMetrics().widthPixels;
-                    params.width = Math.max(180, Math.min(Math.round(screenW * .7f), Math.round(pinchWidth * distance(e) / pinchStart)));
-                    params.height = shape.equals("wide") ? params.width * 9 / 16 : params.width;
-                    miniWidth = params.width;
+                    resizeTo(Math.round(pinchWidth * distance(e) / pinchStart));
+                } else if (cornerResize) {
+                    resizeTo(Math.round(cornerStartWidth + (e.getRawX() - cornerStartX)));
                 } else {
                     params.x += Math.round(e.getRawX() - lastTouchX);
                     params.y += Math.round(e.getRawY() - lastTouchY);
                     miniX = params.x; miniY = params.y;
                     lastTouchX = e.getRawX(); lastTouchY = e.getRawY();
+                    wm.updateViewLayout(web, params);
                 }
-                wm.updateViewLayout(web, params);
                 return true;
             case MotionEvent.ACTION_POINTER_UP:
+            case MotionEvent.ACTION_UP:
                 pinchStart = 0;
+                cornerResize = false;
                 lastTouchX = e.getRawX(); lastTouchY = e.getRawY();
                 return true;
             default: return true;
         }
     }
 
+    private void resizeTo(int width) {
+        int screenW = context.getResources().getDisplayMetrics().widthPixels;
+        params.width = Math.max(160, Math.min(Math.round(screenW * .7f), width));
+        params.height = shape.equals("wide") ? params.width * 9 / 16 : params.width;
+        miniWidth = params.width;
+        wm.updateViewLayout(web, params);
+    }
+
+    /** Botões − / + do painel: muda o tamanho do rosto em 15%. */
+    public void grow(float factor) {
+        main.post(() -> {
+            if (params == null || web == null || scene.equals("face")) return;
+            resizeTo(Math.round(params.width * factor));
+        });
+    }
+
+    /** Distância entre os dedos pela tela (não pela janela, que muda de tamanho durante a pinça). */
     private float distance(MotionEvent e) {
-        return (float) Math.hypot(e.getX(0) - e.getX(1), e.getY(0) - e.getY(1));
+        return (float) Math.hypot(e.getRawX(0) - e.getRawX(1), e.getRawY(0) - e.getRawY(1));
     }
 
     private void move(double dx, double dy) {

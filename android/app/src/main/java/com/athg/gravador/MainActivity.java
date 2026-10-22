@@ -76,6 +76,11 @@ public final class MainActivity extends Activity {
         scenes.addView(sceneButton("3 Só jogo", "game"), new LinearLayout.LayoutParams(0, dp(52), 1));
         box.addView(scenes);
         box.addView(button("Formato do rosto: alternar", () -> FaceOverlay.get(this).nextShape()));
+        LinearLayout size = new LinearLayout(this);
+        size.addView(button("Rosto menor  −", () -> FaceOverlay.get(this).grow(1 / 1.15f)), new LinearLayout.LayoutParams(0, dp(52), 1));
+        size.addView(button("Rosto maior  +", () -> FaceOverlay.get(this).grow(1.15f)), new LinearLayout.LayoutParams(0, dp(52), 1));
+        box.addView(size);
+        box.addView(label("Também dá para mudar o tamanho arrastando o canto inferior direito do rosto, ou com dois dedos em cima dele.", 13, Color.LTGRAY));
         box.addView(label("Qualidade da gravação", 16, Color.WHITE));
         quality = new Spinner(this);
         quality.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,

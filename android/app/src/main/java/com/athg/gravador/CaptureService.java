@@ -166,11 +166,12 @@ public final class CaptureService extends Service {
             android.media.MediaCodecInfo.VideoCapabilities caps = video.getCodecInfo()
                     .getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).getVideoCapabilities();
             // Escolhe uma combinação que o codificador deste tablet anuncia suportar.
+            // Bitrate alto: jogo tem muito movimento e detalhe, e 8 Mbps borrava a imagem.
             int[][] options = requestedQuality == 0
-                    ? new int[][]{{1280, 60, 6_000_000}, {1920, 30, 8_000_000}, {1280, 30, 5_000_000}}
+                    ? new int[][]{{1280, 60, 10_000_000}, {1920, 30, 14_000_000}, {1280, 30, 8_000_000}}
                     : requestedQuality == 2
-                    ? new int[][]{{1920, 60, 12_000_000}, {1920, 30, 8_000_000}, {1280, 60, 6_000_000}}
-                    : new int[][]{{1920, 30, 8_000_000}, {1280, 60, 6_000_000}, {1280, 30, 5_000_000}};
+                    ? new int[][]{{1920, 60, 24_000_000}, {1920, 30, 18_000_000}, {1280, 60, 12_000_000}}
+                    : new int[][]{{1920, 30, 16_000_000}, {1280, 60, 10_000_000}, {1280, 30, 8_000_000}};
             int width = 0, height = 0, bitrate = 0, fps = 0;
             for (int[] option : options) {
                 double scale = Math.min(1.0, (double) option[0] / Math.max(metrics.widthPixels, metrics.heightPixels));
@@ -187,6 +188,14 @@ public final class CaptureService extends Service {
             v.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);
             v.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
             v.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2);
+            // Perfil High quando o codificador tem (mais qualidade no mesmo bitrate).
+            for (MediaCodecInfo.CodecProfileLevel pl : video.getCodecInfo().getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).profileLevels) {
+                if (pl.profile == MediaCodecInfo.CodecProfileLevel.AVCProfileHigh) {
+                    v.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileHigh);
+                    v.setInteger(MediaFormat.KEY_LEVEL, pl.level);
+                    break;
+                }
+            }
             // Tempo real: o codificador prioriza entregar todos os quadros no ritmo da tela.
             v.setInteger(MediaFormat.KEY_PRIORITY, 0);
             v.setInteger(MediaFormat.KEY_OPERATING_RATE, fps);
@@ -208,7 +217,7 @@ public final class CaptureService extends Service {
                     .setAudioFormat(new AudioFormat.Builder().setSampleRate(48000)
                             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                             .setChannelMask(AudioFormat.CHANNEL_IN_STEREO).build())
-                    .setBufferSizeInBytes(Math.max(min, 32768)).build();
+                    .setBufferSizeInBytes(Math.max(min, 48000 * 4)).build(); // ~1 s de folga
             if (playback.getState() != AudioRecord.STATE_INITIALIZED) throw new IllegalStateException("Áudio interno indisponível");
 
             baseMonoUs = System.nanoTime() / 1000;
@@ -259,43 +268,70 @@ public final class CaptureService extends Service {
         } catch (Exception e) { Log.e("ATHG", "video", e); error = "Vídeo: " + e.getMessage(); }
     }
 
+    /**
+     * Som do jogo → AAC. Nunca descarta PCM: se o codificador estiver cheio, esvazia a saída e
+     * tenta de novo (antes, pedaços eram jogados fora: estalos e música sumindo). O horário de
+     * cada pedaço vem da contagem de amostras (contínuo), e só é reajustado se o Android perder
+     * áudio de verdade (mais de 200 ms de diferença para o relógio).
+     */
     private void feedAudio() {
-        byte[] pcm = new byte[8192];
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+        byte[] pcm = new byte[4096]; // 1024 quadros estéreo de 16 bits
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+        long firstUs = -1;
+        long frames = 0;
         try {
             while (running) {
                 int count = playback.read(pcm, 0, pcm.length, AudioRecord.READ_BLOCKING);
-                if (count > 0) queueAudio(pcm, count, Math.max(0, System.nanoTime() / 1000 - baseMonoUs));
+                if (count <= 0) { drainAudio(info, false); continue; }
+                long nowUs = Math.max(0, System.nanoTime() / 1000 - baseMonoUs);
+                long chunkUs = (count / 4) * 1_000_000L / 48000;
+                if (firstUs < 0) firstUs = Math.max(0, nowUs - chunkUs);
+                long pts = firstUs + frames * 1_000_000L / 48000;
+                if (nowUs - chunkUs - pts > 200_000) { firstUs += nowUs - chunkUs - pts; pts = nowUs - chunkUs; }
+                queueAudio(pcm, count, pts, info);
+                frames += count / 4;
                 drainAudio(info, false);
             }
-            while (!queueAudio(pcm, 0, Math.max(0, System.nanoTime() / 1000 - baseMonoUs))) drainAudio(info, true);
-            for (int i = 0; i < 100; i++) if (drainAudio(info, true)) break;
+            long endPts = firstUs < 0 ? 0 : firstUs + frames * 1_000_000L / 48000;
+            queueAudio(pcm, 0, endPts, info);
+            for (int i = 0; i < 200; i++) if (drainAudio(info, true)) break;
         } catch (Exception e) { Log.e("ATHG", "audio", e); error = "Áudio do jogo: " + e.getMessage(); }
     }
 
-    private boolean queueAudio(byte[] pcm, int count, long pts) {
-        int index = audio.dequeueInputBuffer(10000);
-        if (index < 0) return false;
-        ByteBuffer input = audio.getInputBuffer(index);
-        if (input == null) return false;
-        input.clear();
-        input.put(pcm, 0, count);
-        audio.queueInputBuffer(index, 0, count, pts, count == 0 ? MediaCodec.BUFFER_FLAG_END_OF_STREAM : 0);
-        return true;
+    /** Entrega o PCM inteiro ao codificador (em quantas partes precisar), sem descartar nada. */
+    private void queueAudio(byte[] pcm, int count, long pts, MediaCodec.BufferInfo info) {
+        int offset = 0;
+        do {
+            int index = audio.dequeueInputBuffer(5000);
+            if (index < 0) { drainAudio(info, false); continue; }
+            ByteBuffer input = audio.getInputBuffer(index);
+            if (input == null) continue;
+            input.clear();
+            int n = Math.min(count - offset, input.remaining());
+            input.put(pcm, offset, n);
+            long p = pts + (offset / 4) * 1_000_000L / 48000;
+            audio.queueInputBuffer(index, 0, n, p, count == 0 ? MediaCodec.BUFFER_FLAG_END_OF_STREAM : 0);
+            offset += n;
+        } while (offset < count);
     }
 
+    /** Esvazia toda a saída disponível do AAC. Devolve true no fim do stream. */
     private boolean drainAudio(MediaCodec.BufferInfo info, boolean finalDrain) {
-        int index = audio.dequeueOutputBuffer(info, finalDrain ? 100000 : 0);
-        if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-            synchronized (muxLock) { audioTrack = muxer.addTrack(audio.getOutputFormat()); startMuxer(); }
-        } else if (index >= 0) {
+        while (true) {
+            int index = audio.dequeueOutputBuffer(info, finalDrain ? 100000 : 0);
+            if (index == MediaCodec.INFO_TRY_AGAIN_LATER) return false;
+            if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                synchronized (muxLock) { audioTrack = muxer.addTrack(audio.getOutputFormat()); startMuxer(); }
+                continue;
+            }
+            if (index < 0) continue;
             ByteBuffer buffer = audio.getOutputBuffer(index);
             if (buffer != null && info.size > 0 && (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) write(audioTrack, buffer, info);
             boolean eos = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
             audio.releaseOutputBuffer(index, false);
-            return eos;
+            if (eos) return true;
         }
-        return false;
     }
 
     private void startMuxer() {
