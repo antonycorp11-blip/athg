@@ -435,7 +435,8 @@ final class Studio: NSObject, ObservableObject, WKScriptMessageHandler {
   // MARK: captura
 
   func rearm() {
-    guard CGPreflightScreenCaptureAccess(), panel != nil, !recording else { return }
+    // Sem confiar só no CGPreflight (ele erra com apps assinados localmente): tenta capturar.
+    guard panel != nil, !recording else { return }
     let (w, h) = outputSize
     let hidden = [CGWindowID(panel.windowNumber)]
     Task { @MainActor in
@@ -445,7 +446,8 @@ final class Studio: NSObject, ObservableObject, WKScriptMessageHandler {
         message = "Pronto: \(w)×\(h), chip de vídeo."
       } catch {
         armed = false
-        message = "Não deu para capturar a tela: \(error.localizedDescription)"
+        message = "Sem permissão de gravação de tela. Em Ajustes do Sistema › Privacidade e Segurança › Gravação de Tela, remova o ATHG Gravador (botão −), abra o app de novo e autorize. (\(error.localizedDescription))"
+        _ = CGRequestScreenCaptureAccess()
       }
     }
   }
@@ -454,7 +456,7 @@ final class Studio: NSObject, ObservableObject, WKScriptMessageHandler {
 
   func startRec() {
     guard armed, !recording else {
-      if !CGPreflightScreenCaptureAccess() { message = "Libere o ATHG Gravador em Ajustes do Sistema › Privacidade › Gravação de Tela e abra o app de novo." }
+      if !armed { rearm() }
       return
     }
     let base = takeName()
@@ -487,6 +489,7 @@ final class Studio: NSObject, ObservableObject, WKScriptMessageHandler {
         }
       }
       take = nil
+      log("gravação: \(url?.lastPathComponent ?? "-") \(String(format: "%.2f", secs)) s")
     }
   }
 
@@ -578,6 +581,7 @@ final class Studio: NSObject, ObservableObject, WKScriptMessageHandler {
       let status = m["status"] as? String ?? ""
       phoneOK = camera && status != "waiting"
       phone = phoneOK ? "iPhone conectado" : status == "connecting" ? "Conectando o iPhone…" : "Aguardando o iPhone"
+      log("iPhone: \(status) câmera=\(camera)")
       if phoneOK { showQR = false }
       syncFace()
     case "pcm":
@@ -803,12 +807,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     for m in menu.items where m.action != #selector(NSApplication.terminate(_:)) { m.target = self }
     item.menu = menu
 
-    if CGPreflightScreenCaptureAccess() {
-      studio.rearm()
-    } else {
-      _ = CGRequestScreenCaptureAccess()
-      studio.message = "Libere o ATHG Gravador em Ajustes do Sistema › Privacidade e Segurança › Gravação de Tela, depois feche e abra o app de novo."
-    }
+    studio.rearm()
     Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
       self?.item.button?.title = self?.studio.recording == true ? "● REC" : "◉ ATHG"
     }
