@@ -78,7 +78,7 @@ public final class MainActivity extends Activity {
             i.setDataAndType(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video/*");
             try { startActivity(i); } catch (Exception e) { toast("Abra Filmes › ATHG Gravações no gerenciador de arquivos."); }
         }));
-        box.addView(label("Durante a gravação, abra o jogo. Arraste a câmera para mover e use dois dedos para mudar o tamanho. As cenas também mudam pelo iPhone. Pare pela notificação ATHG. O áudio do tablet nunca usa o microfone do tablet.", 13, 0xff9aabc1));
+        box.addView(label("Deixe o tablet na orientação do jogo antes de tocar em Gravar. Durante a gravação, abra o jogo. Arraste a câmera para mover e use dois dedos para mudar o tamanho. As cenas também mudam pelo iPhone. Pare pela notificação ATHG. O áudio do tablet nunca usa o microfone do tablet.", 13, 0xff9aabc1));
         setContentView(scroll);
         tick.run();
     }

@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.media.AudioManager;
+import android.media.AudioAttributes;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -55,7 +56,7 @@ public final class FaceOverlay {
         voice = new PhoneVoice(context);
         AudioManager audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         // O áudio reproduzido aqui é a voz do iPhone; não deve contaminar a trilha do jogo.
-        audio.setAllowedCapturePolicy(AudioManager.ALLOW_CAPTURE_BY_NONE);
+        audio.setAllowedCapturePolicy(AudioAttributes.ALLOW_CAPTURE_BY_NONE);
     }
 
     public String roomUrl() { return roomUrl; }
@@ -81,10 +82,14 @@ public final class FaceOverlay {
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setMediaPlaybackRequiresUserGesture(false);
         web.addJavascriptInterface(new Bridge(), "athgAndroid");
-        web.setOnTouchListener((view, event) -> touch(event));
+        web.setOnTouchListener((view, event) -> { touch(event); return false; });
         // O site já usa window.webkit.messageHandlers.athg para o Mac.
         // Cria o mesmo objeto antes de qualquer script da página executar.
-        String shim = "window.webkit={messageHandlers:{athg:{postMessage:function(m){window.athgAndroid.postMessage(JSON.stringify(m))}}}};";
+        String shim = "window.webkit={messageHandlers:{athg:{postMessage:function(m){window.athgAndroid.postMessage(JSON.stringify(m))}}}};"
+                + "window.__athgContexts=[];"
+                + "if(window.AudioContext){const NativeAudioContext=window.AudioContext;"
+                + "window.AudioContext=class extends NativeAudioContext{constructor(...a){super(...a);window.__athgContexts.push(this)}};"
+                + "window.addEventListener('pointerdown',()=>window.__athgContexts.forEach(c=>c.resume()),true)};";
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             WebViewCompat.addDocumentStartJavaScript(web, shim, Collections.singleton(SITE));
         }

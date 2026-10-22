@@ -8,6 +8,7 @@ import android.media.AudioTrack;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -127,17 +128,24 @@ public final class PhoneVoice {
             if (peak > 0 && length > 0) {
                 double gain = Math.min(Math.pow(10, 24.0 / 20), 29203.0 / peak);
                 byte[] block = new byte[96000];
-                for (long pos = 44; pos < 44 + length; pos += block.length) {
-                    channel.position(pos);
-                    int count = channel.read(ByteBuffer.wrap(block, 0, (int) Math.min(block.length, 44 + length - pos)));
-                    if (count <= 0) break;
-                    ByteBuffer samples = ByteBuffer.wrap(block).order(ByteOrder.LITTLE_ENDIAN);
-                    for (int i = 0; i + 1 < count; i += 2) {
-                        int raised = (int) Math.round(samples.getShort(i) * gain);
-                        samples.putShort(i, (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, raised)));
+                try (ParcelFileDescriptor readFd = context.getContentResolver().openFileDescriptor(uri, "r")) {
+                    if (readFd != null) {
+                        try (FileInputStream inputStream = new FileInputStream(readFd.getFileDescriptor())) {
+                            FileChannel input = inputStream.getChannel();
+                            for (long pos = 44; pos < 44 + length; pos += block.length) {
+                                input.position(pos);
+                                int count = input.read(ByteBuffer.wrap(block, 0, (int) Math.min(block.length, 44 + length - pos)));
+                                if (count <= 0) break;
+                                ByteBuffer samples = ByteBuffer.wrap(block).order(ByteOrder.LITTLE_ENDIAN);
+                                for (int i = 0; i + 1 < count; i += 2) {
+                                    int raised = (int) Math.round(samples.getShort(i) * gain);
+                                    samples.putShort(i, (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, raised)));
+                                }
+                                channel.position(pos);
+                                stream.write(block, 0, count);
+                            }
+                        }
                     }
-                    channel.position(pos);
-                    stream.write(block, 0, count);
                 }
             }
             stream.close();

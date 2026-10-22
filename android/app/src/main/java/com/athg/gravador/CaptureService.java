@@ -23,6 +23,7 @@ import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -254,7 +255,12 @@ public final class CaptureService extends Service {
     }
 
     private void startMuxer() {
-        if (!muxStarted && videoTrack >= 0 && audioTrack >= 0) { muxer.start(); muxStarted = true; }
+        if (!muxStarted && videoTrack >= 0 && audioTrack >= 0) {
+            muxer.start(); muxStarted = true;
+            Bundle request = new Bundle();
+            request.putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0);
+            video.setParameters(request);
+        }
     }
 
     private void write(int track, ByteBuffer data, MediaCodec.BufferInfo info) {
